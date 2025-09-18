@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Тест Кенчика</title>
+<style>
+  body {
+    margin: 0;
+    background-color: #a0d8f0; /* простой фон */
+    overflow: hidden;
+  }
+  #gameCanvas {
+    position: relative;
+    width: 800px;
+    height: 400px;
+    margin: 20px auto;
+    background-color: #f0f0f0;
+    border: 2px solid #333;
+  }
+  #ken {
+    position: absolute;
+    bottom: 50px;
+    left: 50px;
+    width: 64px;
+    height: 64px;
+  }
+</style>
+</head>
+<body>
+<div id="gameCanvas">
+  <img id="ken" src="idle.png">
+</div>
+
+<script>
+const ken = document.getElementById('ken');
+
+// Ходьба
+const walkFrames = ["walk1.png", "walk2.png"];
+let frameIndex = 0;
+let posX = 50;
+
+// Для дыхания idle
+const idleFrames = ["idle.png", "idle2.png"];
+let idleIndex = 0;
+
+// Цикл дыхания каждые 0.5 секунды
+setInterval(() => {
+  if (!ken.classList.contains("moving")) { // если персонаж не двигается
+    ken.src = idleFrames[idleIndex];
+    idleIndex = (idleIndex + 1) % idleFrames.length;
+  }
+}, 500);
+
+document.addEventListener('keydown', (e) => {
+  ken.classList.add("moving");
+  if (e.key === "ArrowRight") {
+    posX += 5;
+    ken.src = walkFrames[frameIndex];
+    frameIndex = (frameIndex + 1) % walkFrames.length;
+    ken.style.left = posX + "px";
+  }
+  if (e.key === "ArrowLeft") {
+    posX -= 5;
+    ken.src = walkFrames[frameIndex];
+    frameIndex = (frameIndex + 1) % walkFrames.length;
+    ken.style.left = posX + "px";
+  }
+  if (e.key === " ") { // пробел для удара рукой
+    ken.src = "punch.png";
+    setTimeout(() => ken.src = "idle.png", 200);
+  }
+});
+
+document.addEventListener('keyup', () => {
+  ken.classList.remove("moving");
+});
+</script>
+</body>
+</html>
