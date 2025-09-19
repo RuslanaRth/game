@@ -50,7 +50,7 @@ function loadImage(key, src) {
         images[key] = null;
         loadedCount++;
         statusBox.style.background = 'rgba(128,0,0,0.6)';
-        statusBox.innerHTML = ТАЙМАУТ <br> Не грузится: ${src};
+        statusBox.innerHTML = 'Timeout: ${src}';
         loaded = true;
         resolve();
       }
@@ -122,4 +122,5 @@ gameLoop();
 </script>
 </body>
 </html>
+
 
