@@ -13,13 +13,14 @@
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
-<div id="overlay">Загрузка ресурсов... (кликни или нажми любую клавишу, чтобы включить звук)</div>
+<div id="overlay">Загрузка ресурсов... (кликни по экрану чтобы включить звук)</div>
 <button id="oopsBtn">Oops!</button>
 <script>
 /* ---------- данные и стейт ---------- */
 let images = {}, SOUNDS = {}, missing = [];
 let page = 1;
 let showOops = false, showOops2 = false;
+let audioEnabled = false;
 
 const ken = { x:50, y:0, w:200, h:200, vx:6, action:'idle', animTimer:0, facing:'right' };
 const enemies = {
@@ -91,7 +92,7 @@ function drawEnemy(en){
 }
 
 function drawDeathPuffs(){
-  if(page === 2 && !enemies.level2.alive && images.mushdeath){
+if(page === 2 && !enemies.level2.alive && images.mushdeath){
     ctx.drawImage(images.mushdeath, enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
   }
   if(page === 3){
@@ -119,15 +120,54 @@ const IMAGES = {
   oops:'oops.jpg', oops2:'oops2.jpg'
 };
 
-// РЕТРО ЗВУКИ - заменяем на библиотечные
-const SOUND_URLS = {
-  punch: 'https://assets.mixkit.co/sfx/preview/mixkit-boxing-punch-2051.mp3',
-  hit: 'https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3',
-  death: 'https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3',
-  fail: 'https://assets.mixkit.co/sfx/preview/mixkit-funny-fail-low-tone-2876.mp3',
-  kitty: 'https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3',
-  whiff: 'https://assets.mixkit.co/sfx/preview/mixkit-whoosh-1123.mp3'
-};
+// ПРОСТЫЕ ВСТРОЕННЫЕ ЗВУКИ ЧЕРЕЗ Web Audio API
+function createSound(frequency, duration, type = 'sine') {
+  if (!audioEnabled) return;
+  
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gainNode.gain.setValueAtTime(0.7, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + duration);
+  } catch (e) {
+    console.log('Audio error:', e);
+  }
+}
+
+function playSound(soundName) {
+  if (!audioEnabled) return;
+  
+  switch(soundName) {
+    case 'punch':
+      createSound(150, 0.1, 'square'); // Низкий звук удара
+      break;
+    case 'hit':
+      createSound(300, 0.2, 'sawtooth'); // Звук попадания
+      break;
+    case 'death':
+      createSound(200, 0.5, 'sine'); // Длинный звук смерти
+      break;
+    case 'fail':
+      createSound(100, 0.3, 'square'); // Звук неудачи
+      break;
+    case 'kitty':
+      createSound(400, 0.8, 'sine'); // Победный звук
+      break;
+    case 'whiff':
+      createSound(80, 0.15, 'triangle'); // Промах
+      break;
+  }
+}
 
 function loadImage(key, src){
   return new Promise(res=>{
@@ -138,79 +178,43 @@ function loadImage(key, src){
   });
 }
 
-function loadSound(key, url){
-  return new Promise(resolve=>{
-    const a = new Audio();
-    a.preload = 'auto';
-    a.oncanplaythrough = ()=>{ SOUNDS[key] = a; resolve({ok:true,key}); };
-    a.onerror = ()=>{ SOUNDS[key] = null; missing.push(url); resolve({ok:false,key}); };
-    a.src = url;
-  });
-}
-
 async function preloadAll(){
   overlay.textContent = 'Загружаю ресурсы...';
   missing = [];
   images = {};
-  SOUNDS = {};
   
   const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
-  const soundPromises = Object.entries(SOUND_URLS).map(([k,url])=>loadSound(k,url));
+  await Promise.all(imagePromises);
   
-  await Promise.all([...imagePromises, ...soundPromises]);
-  
-  if(missing.length) overlay.textContent = 'Не загружены: ' + missing.join(', ');
-  else overlay.textContent = 'Кликни или нажми любую клавишу, чтобы включить звук';
+  if(missing.length) {
+    overlay.textContent = 'Не загружены: ' + missing.join(', ');
+  } else {
+    overlay.textContent = 'Кликни по экрану чтобы включить звук';
+  }
 }
 
-/* ---------- audio unlock (fix for "no sound") ---------- */
-let audioUnlocked = false;
-let audioCtx = null;
-function unlockAudio(){
-  if(audioUnlocked) return;
-  audioUnlocked = true;
-  try{
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    audioCtx.resume().catch(()=>{});
-    // краткий "молчаливый" сигнал, чтобы разблокировать WebAudio
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    g.gain.value = 0;
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + 0.02);
-  }catch(e){}
-  // Попытка "разблокировать" HTMLAudio (проиграть и сразу остановить)
-  Object.values(SOUNDS).forEach(a=>{
-    if(!a) return;
-    try{
-      a.volume = 0;
-      const p = a.play();
-      if(p && p.catch) p.catch(()=>{});
-      setTimeout(()=>{ try{ a.pause(); a.currentTime = 0; a.volume = 1; }catch(e){} }, 60);
-    }catch(e){}
-  });
+// ВКЛЮЧЕНИЕ ЗВУКА ПО КЛИКУ
+function enableAudio() {
+  if (audioEnabled) return;
+  audioEnabled = true;
   overlay.style.display = 'none';
+  
+  // Тестовый звук для проверки
+  playSound('hit');
 }
-window.addEventListener('pointerdown', unlockAudio, { once:true });
-window.addEventListener('keydown', unlockAudio, { once:true });
 
-function playSound(name){
-  const a = SOUNDS[name];
-  if(!a) return;
-  try{
-    const node = a.cloneNode();
-    node.play().catch(()=>{});
-  }catch(e){}
-}
-  /* ---------- ввод / управление (fix: ignore repeats, cooldown) ---------- */
+canvas.addEventListener('click', enableAudio, { once: true });
+window.addEventListener('keydown', enableAudio, { once: true });
+
+/* ---------- ввод / управление ---------- */
 const keys = {};
 let lastPunchTime = 0;
-const punchCooldown = 180; // мс
+const punchCooldown = 180;
 
 window.addEventListener('keydown', (e)=>{
   if(e.code === 'Space'){
     e.preventDefault();
-    if(e.repeat) return;            // игнорируем автоповтор
+    if(e.repeat) return;
     keys['Space'] = true;
     handleAction();
     return;
@@ -221,10 +225,8 @@ window.addEventListener('keyup', (e)=>{
   if(e.code === 'Space') keys['Space'] = false;
   if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = false;
 });
-
-/* ---------- хитбокс для удара (fix: попадания) ---------- */
 function attackHitbox(){
-  const range = 90; // как далеко доходит удар
+  const range = 90;
   const verticalInset = 30;
   const hb = { x:0,y:ken.y+verticalInset, w:range, h: ken.h - verticalInset*1.5 };
   if(ken.facing === 'right'){
@@ -235,16 +237,14 @@ function attackHitbox(){
   return hb;
 }
 
-/* ---------- обработка действия (удар / взаимодействие с девушкой) ---------- */
 function nearGirl(){ return isColliding(ken, girl); }
 
 function handleAction(){
-  unlockAudio();
+  enableAudio();
   if(showOops || showOops2) return;
   if(Date.now() - lastPunchTime < punchCooldown) return;
   lastPunchTime = Date.now();
 
-  // если 4 сцена и рядом девушка — это взаимодействие (показываем oops)
   if(page === 4 && nearGirl()){
     showOops = true;
     playSound('fail');
@@ -252,7 +252,6 @@ function handleAction(){
     return;
   }
 
-  // обычный удар
   ken.action = 'punch';
   let hit = false;
   const hb = attackHitbox();
@@ -305,42 +304,35 @@ function update(){
   ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
   ken.animTimer++;
 
-  // таймеры попаданий
   if(enemies.level2.hitTimer > 0){ enemies.level2.hitTimer--; if(enemies.level2.hitTimer === 0) enemies.level2.action = 'idle'; }
   enemies.level3.forEach(en => { if(en.hitTimer > 0){ en.hitTimer--; if(en.hitTimer === 0) en.action = 'idle'; } });
 
-  // переходы сцен
   if(page===1 && ken.x >= canvas.width - ken.w - 10){ page = 2; ken.x = 40; }
   else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page = 3; ken.x = 40; }
   else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page = 4; ken.x = 40; }
 }
 
 function render(){
-  // фон
   const bg = (page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
   if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height);
   else { ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height); }
 
-  // прах (сзади) - только для текущего уровня
   drawDeathPuffs();
 
-  // враги / девушка / персонаж
   if(page===2) drawEnemy(enemies.level2);
   if(page===3) enemies.level3.forEach(en => drawEnemy(en));
   if(page===4) drawGirl();
 
   drawKen();
-  // HUD
+
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
   ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: ' + page, 14, 30);
 
-  // подсказка около девушки
   if(page===4 && !showOops && !showOops2 && nearGirl()){
     ctx.fillStyle='yellow'; ctx.font='20px monospace';
     ctx.fillText('Нажми SPACE', canvas.width - 300, canvas.height - 260);
   }
 
-  // показываем oops экраны (уменьшенные)
   if(showOops){
     if(images.oops) {
       const width = canvas.width * 0.8;
@@ -351,15 +343,14 @@ function render(){
   }
   if(showOops2){
     if(images.oops2) {
-      const width = canvas.width * 0.7; // Уменьшили размер
+      const width = canvas.width * 0.7;
       const height = width * 0.6;
       ctx.drawImage(images.oops2, (canvas.width - width)/2, (canvas.height - height)/2, width, height);
     }
     else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops2');
   }
-}
-
-function loop(){
+}  
+  function loop(){
   try{
     update(); render();
     requestAnimationFrame(loop);
