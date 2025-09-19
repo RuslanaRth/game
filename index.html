@@ -1,89 +1,137 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<title>Кенчик тест</title>
-<style>
-  body { 
-    margin:0; 
-    overflow:hidden; 
-  }
-  #ken { 
-    position:absolute; 
-    bottom:0; /* Кенчик на краю экрана */
-    left:50px; 
-    width:200px;  
-    height:200px; 
-    z-index:1;
-    filter: brightness(1.5); /* Яркость спрайта */
-  }
-</style>
-</head>
-<body>
-<!-- Фон JPG -->
-<img src="back1.jpg" style="width:100%; height:100%; position:absolute; z-index:0;">
+import pygame
+import sys
 
-<!-- Спрайт Кенчика -->
-<img id="ken" src="idle.png" alt="Кенчик">
+pygame.init()
 
-<script>
-const ken = document.getElementById('ken');
+# --- Настройки окна ---
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Ken Game")
 
-// Спрайты
-const walkFrames = ["walk1.png","walk2.png"];
-const idleFrames = ["idle.png","idle2.png"];
-let frameIndex = 0;
-let frameCounter = 0; // для плавной смены ноги
-let idleIndex = 0;
-let posX = 50;
+clock = pygame.time.Clock()
 
-// Анимация idle
-setInterval(()=>{
-  if(!ken.classList.contains("moving")){
-    ken.src = idleFrames[idleIndex];
-    idleIndex = (idleIndex + 1) % idleFrames.length;
-  }
-}, 500);
+# --- Фоны ---
+backgrounds = [
+    pygame.image.load("back1.jpg"),
+    pygame.image.load("back2.jpg")
+]
 
-// Управление
-document.addEventListener('keydown', (e) => {
-  ken.classList.add("moving");
+# --- Спрайты Кена ---
+ken_idle = pygame.image.load("ken_idle.png")
+ken_walk1 = pygame.image.load("ken_walk1.png")
+ken_walk2 = pygame.image.load("ken_walk2.png")
+ken_punch = pygame.image.load("ken_punch.png")
 
-  if(e.key === "ArrowRight"){
-    posX += 5;
-    ken.style.left = posX + "px";
-    ken.style.transform = "scaleX(1)";
+ken_images = {
+    "idle": [ken_idle],
+    "walk": [ken_walk1, ken_walk2],
+    "punch": [ken_punch]
+}
 
-    frameCounter++;
-    if(frameCounter >= 5){ 
-      frameCounter = 0;
-      frameIndex = (frameIndex + 1) % walkFrames.length;
-      ken.src = walkFrames[frameIndex];
-    }
-  }
+# --- Спрайты врага ---
+mush_idle1 = pygame.image.load("mushidle1.png")
+mush_idle2 = pygame.image.load("mushidle2.png")
+mush_punch = pygame.image.load("mushpunch.png")
+mush_death = pygame.image.load("mushdeath.png")
 
-  if(e.key === "ArrowLeft"){
-    posX -= 5;
-    ken.style.left = posX + "px";
-    ken.style.transform = "scaleX(-1)";
+mush_images = {
+    "idle": [mush_idle1, mush_idle2],
+    "punch": [mush_punch],
+    "death": [mush_death]
+}
 
-    frameCounter++;
-    if(frameCounter >= 5){
-      frameCounter = 0;
-      frameIndex = (frameIndex + 1) % walkFrames.length;
-      ken.src = walkFrames[frameIndex];
-    }
-  }
+# --- Класс персонажа ---
+class Ken:
+    def init(self):
+        self.x = 100
+        self.y = HEIGHT - 150
+        self.speed = 5
+        self.state = "idle"
+        self.frame = 0
+        self.hp = 3
 
-  if(e.key === " "){
-    ken.src = "punch.png";
-    setTimeout(() => ken.src = "idle.png", 200);
-  }
-});
+    def update(self, keys, scene):
+        if keys[pygame.K_RIGHT]:
+            self.x += self.speed
+            self.state = "walk"
+        elif keys[pygame.K_LEFT]:
+            self.x -= self.speed
+            self.state = "walk"
+        elif keys[pygame.K_SPACE]:
+            self.state = "punch"
+        else:
+            self.state = "idle"
 
-document.addEventListener('keyup', ()=>{ ken.classList.remove("moving"); });
-</script>
-</body>
-</html>
+        self.frame += 0.15
+        if self.frame >= len(ken_images[self.state]):
+            self.frame = 0
+
+        # Переход на следующую сцену
+        if self.x > WIDTH and scene == 0:
+            return 1
+        return scene
+
+    def draw(self, surface):
+        img = ken_images[self.state][int(self.frame)]
+        surface.blit(img, (self.x, self.y))
 
 
+class Mushroom:
+    def init(self):
+        self.x = 600
+        self.y = HEIGHT - 150
+        self.state = "idle"
+        self.frame = 0
+        self.hp = 3
+        self.alive = True
+
+    def update(self, ken):
+        if not self.alive:
+            return
+
+        # Проверка удара
+        if ken.state == "punch" and abs(ken.x - self.x) < 50:
+            self.hp -= 1
+            self.state = "punch"
+            if self.hp <= 0:
+                self.state = "death"
+                self.alive = False
+        else:
+            if self.alive:
+                self.state = "idle"
+
+        self.frame += 0.15
+        if self.frame >= len(mush_images[self.state]):
+            self.frame = 0
+
+    def draw(self, surface):
+        img = mush_images[self.state][int(self.frame)]
+        surface.blit(img, (self.x, self.y))
+
+
+# --- Инициализация ---
+ken = Ken()
+mushroom = Mushroom()
+scene = 0
+
+# --- Игровой цикл ---
+while True:
+    screen.blit(backgrounds[scene], (0, 0))
+    keys = pygame.key.get_pressed()
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+    # --- Обновление ---
+    scene = ken.update(keys, scene)
+
+    if scene == 1:  # Вторая сцена с грибом
+        mushroom.update(ken)
+        mushroom.draw(screen)
+
+    ken.draw(screen)
+
+    pygame.display.flip()
+    clock.tick(60)
