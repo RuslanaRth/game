@@ -143,8 +143,8 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 /* ------------- Логика столкновения ------------- */
-function isColliding(a,b) {
-  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a, b) {
+  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 /* ------------- Отрисовка персонажа ------------- */
@@ -344,3 +344,4 @@ preloadAll().then(() => {
 </script>
 </body>
 </html>
+
