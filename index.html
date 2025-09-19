@@ -17,7 +17,116 @@
 <button id="oopsBtn">Oops!</button>
 
 <script>
-/* ================= safety error overlay ================= */
+// ================= ПЕРЕМЕННЫЕ И ОБЪЕКТЫ ПЕРВЫМИ =================
+let images = {};
+let missing = [];
+let SOUNDS = {};
+let page = 1;
+let showOops = false, showOops2 = false;
+let confetti = [];
+
+// ГЛАВНЫЙ ПЕРСОНАЖ - ОПРЕДЕЛЯЕМ ПЕРВЫМ!
+const ken = {
+  x: 50, y: 0, w: 150, h: 170, 
+  vx: 6, action: 'idle', frame: 0, 
+  animTimer: 0, facing: 'right'
+};
+
+const enemies = {
+  level2: { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
+  level3: [
+    { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
+    { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }
+  ]
+};
+
+const girl = { x:0, y:0, w:160, h:260 };
+
+// ================= БАЗОВЫЕ ФУНКЦИИ =================
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  placeEntities();
+}
+
+function placeEntities(){
+  ken.y = canvas.height - ken.h - 20;
+  enemies.level2.x = Math.max(300, canvas.width - 400);
+  enemies.level2.y = canvas.height - enemies.level2.h - 20;
+  enemies.level3[0].x = Math.max(200, canvas.width - 800);
+  enemies.level3[0].y = canvas.height - enemies.level3[0].h - 20;
+  enemies.level3[1].x = Math.max(300, canvas.width - 400);
+  enemies.level3[1].y = canvas.height - enemies.level3[1].h - 20;
+  girl.x = canvas.width - 220;
+  girl.y = canvas.height - girl.h - 40;
+}
+
+function isColliding(a,b){
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
+}
+
+function drawPlaceholder(x,y,w,h,label){
+  ctx.fillStyle='#222'; ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle='#555'; ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
+}
+
+// ================= ФУНКЦИИ ОТРИСОВКИ (ИСПОЛЬЗУЮТ ken) =================
+function drawKen(){
+  const idleSet = [images.idle, images.idle1].filter(Boolean);
+  const walkSet = [images.walk1, images.walk2].filter(Boolean);
+  const punchImg = images.punch || null;
+
+  let img = null;
+  if(ken.action === 'walk' && walkSet.length) {
+    img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
+  } else if(ken.action === 'punch' && punchImg) {
+    img = punchImg;
+  } else if(idleSet.length) {
+    img = idleSet[Math.floor(ken.animTimer/20) % idleSet.length];
+  }
+
+  if(!img){ 
+    drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken'); 
+    return; 
+  }
+
+  ctx.save();
+  if(ken.facing === 'left'){ 
+    ctx.scale(-1,1); 
+    ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h); 
+  } else {
+    ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
+  }
+  ctx.restore();
+}
+
+function drawDeathPuffs(){
+  const en2 = enemies.level2;
+  if(!en2.alive && images.mushdeath){
+    ctx.drawImage(images.mushdeath, en2.x, en2.y, en2.w, en2.h);
+  }
+  enemies.level3.forEach(en=>{
+    if(!en.alive && images.mushdeath){
+      ctx.drawImage(images.mushdeath, en.x, en.y, en.w, en.h);
+    }
+  });
+}
+
+function drawEnemy(en){
+  if(!en.alive) return;
+  const set = (en.action === 'punch') ? [images.mushpunch].filter(Boolean) : [images.mushidle1, images.mushidle2].filter(Boolean);
+  if(set.length === 0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
+  const img = set[Math.floor(en.animTimer/12) % set.length];
+  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
+  function drawGirl(){
+  const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
+  if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
+  const img = frames[Math.floor(Date.now()/400) % frames.length];
+  ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
+}
+
+// ================= ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ =================
 window.addEventListener('error', (e)=> {
   const ov = document.getElementById('overlay');
   ov.style.display='block';
@@ -26,35 +135,22 @@ window.addEventListener('error', (e)=> {
   console.error(e.error || e.message);
 });
 
-/* ================= DOM + canvas setup ================= */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
 const oopsBtn = document.getElementById('oopsBtn');
 
-function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  placeEntities();
-}
 window.addEventListener('resize', resize);
 resize();
 
-/* ================= resources list (root of repo) ================= */
 const IMAGES = {
   back1:'back1.jpg', back2:'back2.jpg', back3:'back3.jpg', back4:'back4.jpg',
-  idle:'idle.png', idle2:'idle2.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
+  idle:'idle.png', idle1:'idle1.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
   mushidle1:'mushidle1.png', mushidle2:'mushidle2.png', mushpunch:'mushpunch.png', mushdeath:'mushdeath.png',
   girl1:'girl1.png', girl2:'girl2.png', girl3:'girl3.png',
   oops:'oops.jpg', oops2:'oops2.jpg'
 };
 
-// Исправлено: инициализация звуков после загрузки
-let SOUNDS = {};
-
-/* ================= preload images ================= */
-let images = {};
-let missing = [];
 function loadImage(key,src){
   return new Promise(res=>{
     const img = new Image();
@@ -64,7 +160,6 @@ function loadImage(key,src){
   });
 }
 
-// Добавлена функция загрузки звуков
 function loadSound(key, src) {
   return new Promise(resolve => {
     const audio = new Audio();
@@ -85,7 +180,7 @@ function loadSound(key, src) {
 async function preloadAll(){
   overlay.textContent = 'Загружаю ресурсы...';
   missing=[]; images={};
-  SOUNDS = {}; // Инициализируем звуки
+  SOUNDS = {};
   
   const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
   const soundPromises = [
@@ -112,33 +207,6 @@ function playAudioSafe(soundName){
   }catch(e){}
 }
 
-/* ================= entities & placement ================= */
-let page = 1; // 1..4
-let showOops=false, showOops2=false;
-  const enemies = {
-  level2: { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
-  level3: [
-    { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
-    { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }
-  ]
-};
-
-const girl = { x:0, y:0, w:160, h:260 };
-
-// set positions depending on canvas size
-function placeEntities(){
-  ken.y = canvas.height - ken.h - 20;
-  enemies.level2.x = Math.max(300, canvas.width - 400);
-  enemies.level2.y = canvas.height - enemies.level2.h - 20;
-  enemies.level3[0].x = Math.max(200, canvas.width - 800);
-  enemies.level3[0].y = canvas.height - enemies.level3[0].h - 20;
-  enemies.level3[1].x = Math.max(300, canvas.width - 400);
-  enemies.level3[1].y = canvas.height - enemies.level3[1].h - 20;
-  girl.x = canvas.width - 220;
-  girl.y = canvas.height - girl.h - 40;
-}
-
-/* ================= input (SPACE only for attack / interact) ================= */
 const keys = {};
 window.addEventListener('keydown', (e)=>{
   if(e.code === 'Space'){
@@ -152,18 +220,14 @@ window.addEventListener('keyup', (e)=>{
   if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code]=false;
 });
 
-/* ================= helper collision ================= */
-function isColliding(a, b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function nearGirl(){
+  return (ken.x + ken.w/2 >= canvas.width - 320) || isColliding(ken, girl);
 }
 
-/* ================= attack / interact logic (SPACE only) ================= */
 function handleAttackOrInteract(){
-  if(showOops || showOops2) return; // block during cutscene
+  if(showOops || showOops2) return;
 
-  // If on page4 and near girl -> interaction (space acts as action)
   if(page === 4 && nearGirl()){
-    // do the "action" instead of punch
     showOops = true;
     playAudioSafe('fail');
     oopsBtn.style.display='block';
@@ -171,7 +235,6 @@ function handleAttackOrInteract(){
     return;
   }
 
-  // Else: attempt to hit enemies
   if(page === 2){
     const en = enemies.level2;
     if(en.alive && isColliding(ken,en)){
@@ -196,77 +259,7 @@ function handleAttackOrInteract(){
     return;
   }
 }
-
-/* helper: are we near girl? */
-function nearGirl(){
-  // area: rightmost 320 px or overlapping girl rect
-  return (ken.x + ken.w/2 >= canvas.width - 320) || isColliding(ken, girl);
-}
-
-/* ================= animation helpers ================= */
-function drawPlaceholder(x,y,w,h,label){
-  ctx.fillStyle='#222'; ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle='#555'; ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
-}
-
-/* ================= draw functions ================= */
-// draw death/puff behind Ken (if any enemy died at that pos) — we'll draw mushdeath BEFORE ken
-function drawDeathPuffs(){
-  // level2 death puff
-  const en2 = enemies.level2;
-  if(!en2.alive && images.mushdeath){
-    // draw behind Ken: so draw earlier
-    ctx.drawImage(images.mushdeath, en2.x, en2.y, en2.w, en2.h);
-  }
-  // level3 puffs
-  enemies.level3.forEach(en=>{
-    if(!en.alive && images.mushdeath){
-      ctx.drawImage(images.mushdeath, en.x, en.y, en.w, en.h);
-    }
-  });
-}
-
-function drawKen(){
-  // Исправлено: idle2 -> idle1
-  const idleSet = [images.idle, images.idle1].filter(Boolean);
-  const walkSet = [images.walk1, images.walk2].filter(Boolean);
-  const punchImg = images.punch || null;
-
-  let img = null;
-  if(ken.action === 'walk' && walkSet.length) img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
-  else if(ken.action === 'punch' && punchImg) img = punchImg;
-  else if(idleSet.length) img = idleSet[Math.floor(ken.animTimer/20) % idleSet.length];
-
-  if(!img){ drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken'); return; }
-
-  ctx.save();
-  if(ken.facing === 'left'){ ctx.scale(-1,1); ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h); }
-  else ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
-  ctx.restore();
-}
-
-function drawEnemy(en){
-  if(!en.alive){
-    // death already drawn behind Ken; nothing to draw on top
-    return;
-  }
-  const set = (en.action === 'punch') ? [images.mushpunch].filter(Boolean) : [images.mushidle1, images.mushidle2].filter(Boolean);
-  if(set.length === 0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
-  const img = set[Math.floor(en.animTimer/12) % set.length];
-  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
-}
-
-function drawGirl(){
-  const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
-  if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
-  const img = frames[Math.floor(Date.now()/400) % frames.length];
-  ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
-}
-
-/* ================= confetti (when oops2 shown) ================= */
-let confetti = [];
-function startConfetti(){
+  function startConfetti(){
   confetti = Array.from({length:120}, ()=>({
     x: Math.random()*canvas.width,
     y: -Math.random()*canvas.height,
@@ -276,6 +269,7 @@ function startConfetti(){
     angle: Math.random()*Math.PI*2
   }));
 }
+
 function updateAndDrawConfetti(){
   confetti.forEach(c=>{
     c.y += c.speed;
@@ -287,62 +281,48 @@ function updateAndDrawConfetti(){
   });
 }
 
-/* ================= main update & render ================= */
 function update(){
-  // movement only when not in oops scenes
   if(!showOops && !showOops2){
     if(keys['ArrowRight']) { ken.x += ken.vx; ken.action='walk'; ken.facing='right'; }
     else if(keys['ArrowLeft']) { ken.x -= ken.vx; ken.action='walk'; ken.facing='left'; }
     else if(ken.action !== 'punch') ken.action='idle';
   }
 
-  // keep on floor
   ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
   ken.animTimer++;
 
-  // enemies anim timers and hit timers
   const e2 = enemies.level2;
   if(e2.hitTimer > 0){ e2.hitTimer--; if(e2.hitTimer===0) e2.action='idle'; }
   enemies.level3.forEach(en=>{ if(en.hitTimer>0){ en.hitTimer--; if(en.hitTimer===0) en.action='idle'; } });
 
-  // scene transitions:
   if(page===1 && ken.x >= canvas.width - ken.w - 10){ page=2; ken.x=40; }
   else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page=3; ken.x=40; }
   else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page=4; ken.x=40; }
 
-  // if showOops2, animate confetti
   if(showOops2) updateAndDrawConfetti();
 }
 
 function render(){
-  // background per page
   const bg = (page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
   if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height);
   else { ctx.fillStyle='#222'; ctx.fillRect(0,0,canvas.width,canvas.height); }
 
-  // DRAW death puffs behind Ken (so they appear behind main sprite)
   drawDeathPuffs();
 
-  // enemies
   if(page===2) drawEnemy(enemies.level2);
   if(page===3) enemies.level3.forEach(en=>drawEnemy(en));
-
-  // girl (page4)
   if(page===4) drawGirl();
 
-  // Ken (on top)
   drawKen();
 
-  // HUD
   ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(8,8,170,36);
   ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: '+page, 14, 30);
 
-  // prompt near girl (but space is still attack)
   if(page===4 && !showOops && !showOops2 && nearGirl()){
     ctx.fillStyle='yellow'; ctx.font='20px monospace';
     ctx.fillText('Подойди и нажми Space', canvas.width - 360, canvas.height - 340);
   }
- // show oops popups
+
   if(showOops){
     if(images.oops) ctx.drawImage(images.oops, canvas.width/2 - 200, canvas.height/2 - 150, 400, 300);
     else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops');
@@ -353,7 +333,6 @@ function render(){
   }
 }
 
-/* ================= button handler for Oops! ================= */
 oopsBtn.addEventListener('click', ()=>{
   showOops = false;
   showOops2 = true;
@@ -362,7 +341,6 @@ oopsBtn.addEventListener('click', ()=>{
   startConfetti();
 });
 
-/* ================= game loop ================= */
 function loop(){
   try{
     update();
@@ -376,11 +354,9 @@ function loop(){
   }
 }
 
-/* ================= start ================= */
 preloadAll().then(()=>{
   overlay.style.display='none';
   placeEntities();
-  // ensure oops btn hidden
   oopsBtn.style.display='none';
   loop();
 }).catch(e=>{
@@ -388,9 +364,7 @@ preloadAll().then(()=>{
   overlay.textContent='Ошибка при старте: '+e;
   console.error(e);
 });
-
 </script>
 </body>
-</html> 
-let ken = { x:50, y:0, w:150, h:170, vx:6, action:'idle', frame:0, animTimer:0, facing:'right' };
-
+</html>
+}
