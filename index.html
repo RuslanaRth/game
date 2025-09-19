@@ -105,6 +105,8 @@ async function preloadAll() {
 }
 
 /* ------------- Игровые сущности ------------- */
+let page = 1; // <── ВАЖНО: теперь переменная наверху
+
 const ken = {
   x: 50, y: canvas.height - 200, w: 200, h: 200,
   vx: 5,
@@ -141,8 +143,8 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 /* ------------- Логика столкновения ------------- */
-function isColliding(a, b) {
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a,b) {
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 /* ------------- Отрисовка персонажа ------------- */
@@ -272,7 +274,7 @@ function update() {
         }
       }
     });
-  }
+  }  
   if (page === 1 && ken.x >= canvas.width - ken.w - 10) {
     page = 2;
     ken.x = 40;
@@ -342,4 +344,3 @@ preloadAll().then(() => {
 </script>
 </body>
 </html>
-let page = 1; // 1, 2 или 3
