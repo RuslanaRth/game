@@ -25,18 +25,18 @@ let page = 1;
 let showOops = false, showOops2 = false;
 let confetti = [];
 
-// ГЛАВНЫЙ ПЕРСОНАЖ - ОПРЕДЕЛЯЕМ ПЕРВЫМ!
+// ГЛАВНЫЙ ПЕРСОНАЖ - РАЗМЕР 200x200!
 const ken = {
-  x: 50, y: 0, w: 150, h: 170, 
+  x: 50, y: 0, w: 200, h: 200,  // ← ИСПРАВЛЕНО: 200x200
   vx: 6, action: 'idle', frame: 0, 
   animTimer: 0, facing: 'right'
 };
 
 const enemies = {
-  level2: { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
+  level2: { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },  // ← 200x200
   level3: [
-    { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
-    { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }
+    { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },  // ← 200x200
+    { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }   // ← 200x200
   ]
 };
 
@@ -61,8 +61,8 @@ function placeEntities(){
   girl.y = canvas.height - girl.h - 40;
 }
 
-function isColliding(a, b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a,b){
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 function drawPlaceholder(x,y,w,h,label){
@@ -120,7 +120,8 @@ function drawEnemy(en){
   const img = set[Math.floor(en.animTimer/12) % set.length];
   if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
 }
-  function drawGirl(){
+
+function drawGirl(){
   const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
   if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
   const img = frames[Math.floor(Date.now()/400) % frames.length];
@@ -185,13 +186,13 @@ async function preloadAll(){
   
   const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
   
-  // ВРЕМЕННО ОТКЛЮЧИМ ЗВУКИ ДЛЯ ДИАГНОСТИКИ
-  // const soundPromises = [
-  //   loadSound('fail', 'fail.mp3'),
-  //   loadSound('kitty', 'kitty.mp3')
-  // ];
+  // ВКЛЮЧАЕМ ЗВУКИ ОБРАТНО!
+  const soundPromises = [
+    loadSound('fail', 'fail.mp3'),
+    loadSound('kitty', 'kitty.mp3')
+  ];
   
-  await Promise.all(imagePromises);
+  await Promise.all([...imagePromises, ...soundPromises]);
   
   if(missing.length){
     overlay.textContent = 'Не загружены: ' + missing.join(', ');
@@ -215,12 +216,14 @@ const keys = {};
 window.addEventListener('keydown', (e)=>{
   if(e.code === 'Space'){
     e.preventDefault();
+    keys['Space'] = true;  // ← ДОБАВЛЕНО: сохраняем нажатие пробела
     handleAttackOrInteract();
     return;
   }
   if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code]=true;
 });
 window.addEventListener('keyup', (e)=>{
+  if(e.code === 'Space') keys['Space'] = false;  // ← ДОБАВЛЕНО: отпускание пробела
   if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code]=false;
 });
 
@@ -231,35 +234,42 @@ function nearGirl(){
 function handleAttackOrInteract(){
   if(showOops || showOops2) return;
 
-  if(page === 4 && nearGirl()){
-    showOops = true;
-    playAudioSafe('fail');
-    oopsBtn.style.display='block';
-    oopsBtn.focus && oopsBtn.blur();
-    return;
-  }
-
-  if(page === 2){
-    const en = enemies.level2;
-    if(en.alive && isColliding(ken,en)){
-      en.hp -= 1;
-      en.action = 'punch'; en.hitTimer = 18;
+  // ПРОБЕЛ РАБОТАЕТ ДЛЯ УДАРА
+  if(keys['Space'] && ken.action !== 'punch') {
+    ken.action = 'punch';
+    
+    if(page === 4 && nearGirl()){
+      showOops = true;
       playAudioSafe('fail');
-      if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
+      oopsBtn.style.display='block';
+      oopsBtn.focus && oopsBtn.blur();
+      return;
     }
-    return;
-  }
-  if(page === 3){
-    for(const en of enemies.level3){
+    if(page === 2){
+      const en = enemies.level2;
       if(en.alive && isColliding(ken,en)){
         en.hp -= 1;
         en.action = 'punch'; en.hitTimer = 18;
         playAudioSafe('fail');
         if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
-        return;
       }
     }
-    return;
+
+    if(page === 3){
+      for(const en of enemies.level3){
+        if(en.alive && isColliding(ken,en)){
+          en.hp -= 1;
+          en.action = 'punch'; en.hitTimer = 18;
+          playAudioSafe('fail');
+          if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
+        }
+      }
+    }
+
+    // Автоматический возврат из удара
+    setTimeout(() => {
+      if(ken.action === 'punch') ken.action = 'idle';
+    }, 300);
   }
 }
 
@@ -361,8 +371,7 @@ function loop(){
     console.error(err);
   }
 }
-
-// ================= ЗАПУСК =================
+  // ================= ЗАПУСК =================
 preloadAll().then(()=>{
   overlay.style.display='none';
   placeEntities();
