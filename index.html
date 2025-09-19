@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ken — сюжет</title>
+<title>Ken — сюжет (fixed)</title>
 <style>
   html,body{height:100%;margin:0;background:#000;font-family:monospace;}
   canvas{display:block;width:100vw;height:100vh;}
@@ -13,222 +13,359 @@
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
-<div id="overlay">Загрузка ресурсов...</div>
+<div id="overlay">Загрузка ресурсов... (кликни или нажми любую клавишу, чтобы включить звук)</div>
 <button id="oopsBtn">Oops!</button>
 
 <script>
-let images = {};
-let SOUNDS = {};
-let missing = [];
+/* ---------- данные и стейт ---------- */
+let images = {}, SOUNDS = {}, missing = [];
 let page = 1;
 let showOops = false, showOops2 = false;
 
-// главный герой
-const ken = {x:50,y:0,w:200,h:200,vx:6,action:'idle',frame:0,animTimer:0,facing:'right'};
-
-// враги
+const ken = { x:50, y:0, w:200, h:200, vx:6, action:'idle', animTimer:0, facing:'right' };
 const enemies = {
-  level2: {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
+  level2: { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
   level3: [
-    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
-    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0}
+    { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
+    { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }
   ]
 };
+const girl = { x:0, y:0, w:220, h:200 };
 
-// девушка
-const girl = {x:0,y:0,w:220,h:200};
-
-// ================= БАЗА =================
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const overlay = document.getElementById("overlay");
-const oopsBtn = document.getElementById("oopsBtn");
+/* ---------- canvas ---------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const oopsBtn = document.getElementById('oopsBtn');
 
 function resize(){
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   placeEntities();
 }
-window.addEventListener("resize",resize);
+window.addEventListener('resize', resize);
 resize();
 
 function placeEntities(){
-  const ground = canvas.height - 200 - 20; // нижняя линия
+  const ground = canvas.height - ken.h - 20;
   ken.y = ground;
-  enemies.level2.x = canvas.width - 400; enemies.level2.y = ground;
-  enemies.level3[0].x = canvas.width - 600; enemies.level3[0].y = ground;
-  enemies.level3[1].x = canvas.width - 300; enemies.level3[1].y = ground;
+  enemies.level2.x = Math.max(300, canvas.width - 400); enemies.level2.y = ground;
+  enemies.level3[0].x = Math.max(200, canvas.width - 800); enemies.level3[0].y = ground;
+  enemies.level3[1].x = Math.max(300, canvas.width - 400); enemies.level3[1].y = ground;
   girl.x = canvas.width - 280; girl.y = ground;
 }
 
 function isColliding(a,b){
-  return !(a.x+a.w<b.xa.x>b.x+b.wa.y+a.h<b.y||a.y>b.y+b.h);
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 function drawPlaceholder(x,y,w,h,label){
-  ctx.fillStyle="#222";ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle="#555";ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle="#fff";ctx.font="14px monospace";ctx.fillText(label,x+6,y+18);
+  ctx.fillStyle='#222'; ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle='#555'; ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
 }
 
-// ================= ОТРИСОВКА =================
+/* ---------- отрисовка персонажей / врагов / праха ---------- */
 function drawKen(){
-  let set=[images.idle,images.idle1].filter(Boolean);
-  let walk=[images.walk1,images.walk2].filter(Boolean);
-  let img=null;
-  if(ken.action==="walk"&&walk.length){img=walk[Math.floor(ken.animTimer/10)%walk.length];}
-  else if(ken.action==="punch"&&images.punch){img=images.punch;}
-  else if(set.length){img=set[Math.floor(ken.animTimer/20)%set.length];}
-  if(!img){drawPlaceholder(ken.x,ken.y,ken.w,ken.h,"Ken");return;}
+  const idleSet = [images.idle, images.idle1].filter(Boolean);
+  const walkSet = [images.walk1, images.walk2].filter(Boolean);
+  const punchImg = images.punch || null;
+  let img = null;
+  if(ken.action === 'walk' && walkSet.length) img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
+  else if(ken.action === 'punch' && punchImg) img = punchImg;
+  else if(idleSet.length) img = idleSet[Math.floor(ken.animTimer/20) % idleSet.length];
+
+  if(!img){ drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken'); return; }
+
   ctx.save();
-  if(ken.facing==="left"){ctx.scale(-1,1);ctx.drawImage(img,-ken.x-ken.w,ken.y,ken.w,ken.h);}
-  else{ctx.drawImage(img,ken.x,ken.y,ken.w,ken.h);}
+  if(ken.facing === 'left'){ ctx.scale(-1,1); ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h); }
+  else ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
   ctx.restore();
 }
 
 function drawEnemy(en){
   if(!en.alive) return;
-  let set=[images.mushidle1,images.mushidle2].filter(Boolean);
-  if(en.action==="punch"&&images.mushpunch) set=[images.mushpunch];
-  if(set.length===0){drawPlaceholder(en.x,en.y,en.w,en.h,"Mush");return;}
-  let img=set[Math.floor(en.animTimer/12)%set.length];
-  ctx.drawImage(img,en.x,en.y,en.w,en.h);
+  const set = (en.action === 'punch') ? [images.mushpunch].filter(Boolean) : [images.mushidle1, images.mushidle2].filter(Boolean);
+  if(set.length === 0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
+  const img = set[Math.floor(en.animTimer/12) % set.length];
+  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
 }
 
 function drawDeathPuffs(){
-  if(!enemies.level2.alive&&images.mushdeath)
-    ctx.drawImage(images.mushdeath,enemies.level2.x,enemies.level2.y,enemies.level2.w,enemies.level2.h);
+  if(!enemies.level2.alive && images.mushdeath){
+    ctx.drawImage(images.mushdeath, enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
+  }
   enemies.level3.forEach(en=>{
-    if(!en.alive&&images.mushdeath)
-      ctx.drawImage(images.mushdeath,en.x,en.y,en.w,en.h);
+    if(!en.alive && images.mushdeath){
+      ctx.drawImage(images.mushdeath, en.x, en.y, en.w, en.h);
+    }
   });
 }
 
 function drawGirl(){
-  const frames=[images.girl1,images.girl2,images.girl3].filter(Boolean);
-  if(frames.length===0){drawPlaceholder(girl.x,girl.y,girl.w,girl.h,"Girl");return;}
-  let img=frames[Math.floor(Date.now()/400)%frames.length];
-  ctx.drawImage(img,girl.x,girl.y,girl.w,girl.h);
-}
-  // ================= РЕСУРСЫ =================
-const IMAGES={
-  back1:"back1.jpg",back2:"back2.jpg",back3:"back3.jpg",back4:"back4.jpg",
-  idle:"idle.png",idle1:"idle1.png",walk1:"walk1.png",walk2:"walk2.png",punch:"punch.png",
-  mushidle1:"mushidle1.png",mushidle2:"mushidle2.png",mushpunch:"mushpunch.png",mushdeath:"mushdeath.png",
-  girl1:"girl1.png",girl2:"girl2.png",girl3:"girl3.png",
-  oops:"oops.jpg",oops2:"oops2.jpg"
-};
-function loadImage(k,src){
-  return new Promise(res=>{let img=new Image();img.onload=()=>{images[k]=img;res();};img.onerror=()=>{images[k]=null;res();};img.src=src;});
-}
-function loadSound(k,src){
-  return new Promise(res=>{let a=new Audio();a.oncanplaythrough=()=>{SOUNDS[k]=a;res();};a.onerror=()=>{SOUNDS[k]=null;res();};a.src=src;});
-}
-async function preloadAll(){
-  overlay.textContent="Загружаю ресурсы...";
-  let promises=[...Object.entries(IMAGES).map(([k,s])=>loadImage(k,s)),
-    loadSound("fail","fail.mp3"),
-    loadSound("kitty","kitty.mp3"),
-    loadSound("hit","hit.mp3"),
-    loadSound("whiff","whiff.mp3")];
-  await Promise.all(promises);
-  overlay.style.display="none";
+  const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
+  if(frames.length === 0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
+  const img = frames[Math.floor(Date.now()/400) % frames.length];
+  ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
 }
 
-// ================= УПРАВЛЕНИЕ =================
-const keys={};
-window.addEventListener("keydown",e=>{
-  if(e.code==="Space"){e.preventDefault();keys["Space"]=true;handleAction();}
-  if(e.code==="ArrowLeft"||e.code==="ArrowRight") keys[e.code]=true;
-});
-window.addEventListener("keyup",e=>{
-  if(e.code==="Space") keys["Space"]=false;
-  if(e.code==="ArrowLeft"||e.code==="ArrowRight") keys[e.code]=false;
-});
+/* ---------- загрузка ресурсов ---------- */
+const IMAGES = {
+  back1:'back1.jpg', back2:'back2.jpg', back3:'back3.jpg', back4:'back4.jpg',
+  idle:'idle.png', idle1:'idle1.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
+  mushidle1:'mushidle1.png', mushidle2:'mushidle2.png', mushpunch:'mushpunch.png', mushdeath:'mushdeath.png',
+  girl1:'girl1.png', girl2:'girl2.png', girl3:'girl3.png',
+  oops:'oops.jpg', oops2:'oops2.jpg'
+};
+function loadImage(key, src){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>{ images[key] = img; res({ok:true,key}); };
+    img.onerror = ()=>{ images[key] = null; missing.push(src); res({ok:false,key}); };
+    img.src = src;
+  });
+}
+function loadSound(key, src){
+  return new Promise(resolve=>{
+    const a = new Audio();
+    a.preload = 'auto';
+    a.oncanplaythrough = ()=>{ SOUNDS[key] = a; resolve({ok:true,key}); };
+    a.onerror = ()=>{ SOUNDS[key] = null; missing.push(src); resolve({ok:false,key}); };
+    a.src = src;
+  });
+}
+
+async function preloadAll(){
+  overlay.textContent = 'Загружаю ресурсы...';
+  missing = [];
+  images = {};
+  SOUNDS = {};
+  const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
+  const soundPromises = [
+    loadSound('fail','fail.mp3'),
+    loadSound('kitty','kitty.mp3'),
+    loadSound('hit','hit.mp3'),
+    loadSound('whiff','whiff.mp3')
+  ];
+  await Promise.all([...imagePromises, ...soundPromises]);
+  if(missing.length) overlay.textContent = 'Не загружены: ' + missing.join(', ');
+  else overlay.textContent = 'Кликни или нажми любую клавишу, чтобы включить звук';
+}
+
+/* ---------- audio unlock (fix for "no sound") ---------- */
+let audioUnlocked = false;
+let audioCtx = null;
+function unlockAudio(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  try{
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume().catch(()=>{});
+    // краткий "молчаливый" сигнал, чтобы разблокировать WebAudio
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    g.gain.value = 0;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.02);
+  }catch(e){}
+  // Попытка "разблокировать" HTMLAudio (проиграть и сразу остановить)
+  Object.values(SOUNDS).forEach(a=>{
+    if(!a) return;
+    try{
+      a.volume = 0;
+      const p = a.play();
+      if(p && p.catch) p.catch(()=>{});
+      setTimeout(()=>{ try{ a.pause(); a.currentTime = 0; a.volume = 1; }catch(e){} }, 60);
+    }catch(e){}
+  });
+  overlay.style.display = 'none';
+}
+window.addEventListener('pointerdown', unlockAudio, { once:true });
+window.addEventListener('keydown', unlockAudio, { once:true });
 
 function playSound(name){
-  if(!SOUNDS[name]) return;
-  let a=SOUNDS[name].cloneNode();a.play().catch(()=>{});
+  const a = SOUNDS[name];
+  if(!a) return;
+  try{
+    const node = a.cloneNode();
+    // попытка играть — если не разблокировано, браузер может выбросить ошибку
+    node.play().catch(()=>{});
+  }catch(e){}
 }
 
-function nearGirl(){
-  return isColliding(ken,girl);
-}
+/* ---------- ввод / управление (fix: ignore repeats, cooldown) ---------- */
+const keys = {};
+let lastPunchTime = 0;
+const punchCooldown = 180; // мс
 
-function handleAction(){
-  if(showOops||showOops2) return;
-  if(page===4&&nearGirl()){ // событие с девушкой
-    showOops=true;
-    playSound("fail");
-    oopsBtn.style.display="block";
+window.addEventListener('keydown', (e)=>{
+  if(e.code === 'Space'){
+    e.preventDefault();
+  // рисуем прах за Кеном — поэтому вызываем ДО drawKen()
+  if(e.repeat) return;            // игнорируем автоповтор
+    keys['Space'] = true;
+    handleAction();
     return;
   }
-  // обычный удар
-  ken.action="punch";
-  let hit=false;
-  if(page===2&&enemies.level2.alive&&isColliding(ken,enemies.level2)){
-    enemies.level2.hp--;hit=true;enemies.level2.action="punch";enemies.level2.hitTimer=15;
-    if(enemies.level2.hp<=0) enemies.level2.alive=false;
+  if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = true;
+});
+window.addEventListener('keyup', (e)=>{
+  if(e.code === 'Space') keys['Space'] = false;
+  if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = false;
+});
+
+/* ---------- хитбокс для удара (fix: попадания) ---------- */
+function attackHitbox(){
+  const range = 90; // как далеко доходит удар
+  const verticalInset = 30;
+  const hb = { x:0,y:ken.y+verticalInset, w:range, h: ken.h - verticalInset*1.5 };
+  if(ken.facing === 'right'){
+    hb.x = ken.x + ken.w - 30;
+  } else {
+    hb.x = ken.x - range + 30;
   }
-  if(page===3){
-    enemies.level3.forEach(en=>{
-      if(en.alive&&isColliding(ken,en)){
-        en.hp--;hit=true;en.action="punch";en.hitTimer=15;
-        if(en.hp<=0) en.alive=false;
-      }
-    });
-  }
-  playSound(hit?"hit":"whiff");
-  setTimeout(()=>{if(ken.action==="punch") ken.action="idle";},250);
+  return hb;
 }
 
-// ================= ОБНОВЛЕНИЕ =================
-function update(){
-  if(!showOops&&!showOops2){
-    if(keys["ArrowRight"]){ken.x+=ken.vx;ken.action="walk";ken.facing="right";}
-    else if(keys["ArrowLeft"]){ken.x-=ken.vx;ken.action="walk";ken.facing="left";}
-    else if(ken.action!=="punch") ken.action="idle";
+/* ---------- обработка действия (удар / взаимодействие с девушкой) ---------- */
+function nearGirl(){ return isColliding(ken, girl); }
+
+function handleAction(){
+  unlockAudio();
+  if(showOops || showOops2) return;
+  if(Date.now() - lastPunchTime < punchCooldown) return;
+  lastPunchTime = Date.now();
+
+  // если 4 сцена и рядом девушка — это взаимодействие (показываем oops)
+  if(page === 4 && nearGirl()){
+    showOops = true;
+    playSound('fail');
+    oopsBtn.style.display = 'block';
+    return;
   }
-  ken.x=Math.max(0,Math.min(canvas.width-ken.w,ken.x));
+
+  // обычный удар
+  ken.action = 'punch';
+  let hit = false;
+  const hb = attackHitbox();
+
+  if(page === 2){
+    const en = enemies.level2;
+    if(en.alive && isColliding(hb, en)){
+      en.hp -= 1; hit = true; en.action = 'punch'; en.hitTimer = 18;
+      if(en.hp <= 0) en.alive = false;
+    }
+  }
+  if(page === 3){
+    for(const en of enemies.level3){
+      if(en.alive && isColliding(hb, en)){
+        en.hp -= 1; hit = true; en.action = 'punch'; en.hitTimer = 18;
+        if(en.hp <= 0) en.alive = false;
+      }
+    }
+  }
+
+  playSound(hit ? 'hit' : 'whiff');
+
+  setTimeout(()=>{ if(ken.action === 'punch') ken.action = 'idle'; }, 260);
+}
+
+/* ---------- кнопка oops ---------- */
+oopsBtn.addEventListener('click', ()=>{
+  showOops = false;
+  showOops2 = true;
+  oopsBtn.style.display = 'none';
+  playSound('kitty');
+});
+
+/* ---------- игровой цикл ---------- */
+function update(){
+  if(!showOops && !showOops2){
+    if(keys['ArrowRight']){ ken.x += ken.vx; ken.action = 'walk'; ken.facing = 'right'; }
+    else if(keys['ArrowLeft']){ ken.x -= ken.vx; ken.action = 'walk'; ken.facing = 'left'; }
+    else if(ken.action !== 'punch') ken.action = 'idle';
+  }
+
+  ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
   ken.animTimer++;
-  if(page===1&&ken.x>=canvas.width-ken.w-10){page=2;ken.x=40;}
-  else if(page===2&&ken.x>=canvas.width-ken.w-10&&!enemies.level2.alive){page=3;ken.x=40;}
-  else if(page===3&&ken.x>=canvas.width-ken.w-10){page=4;ken.x=40;}
-  if(enemies.level2.hitTimer>0){enemies.level2.hitTimer--;if(enemies.level2.hitTimer===0) enemies.level2.action="idle";}
-  enemies.level3.forEach(en=>{if(en.hitTimer>0){en.hitTimer--;if(en.hitTimer===0) en.action="idle";}});
+
+  // таймеры попаданий
+  if(enemies.level2.hitTimer > 0){ enemies.level2.hitTimer--; if(enemies.level2.hitTimer === 0) enemies.level2.action = 'idle'; }
+  enemies.level3.forEach(en => { if(en.hitTimer > 0){ en.hitTimer--; if(en.hitTimer === 0) en.action = 'idle'; } });
+
+  // переходы сцен
+  if(page===1 && ken.x >= canvas.width - ken.w - 10){ page = 2; ken.x = 40; }
+  else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page = 3; ken.x = 40; }
+  else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page = 4; ken.x = 40; }
 }
 
 function render(){
-  const bg=(page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
+  // фон
+  const bg = (page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
   if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height);
-  else {ctx.fillStyle="#111";ctx.fillRect(0,0,canvas.width,canvas.height);}
+  else { ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
   // прах (сзади)
   drawDeathPuffs();
+
+  // враги / девушка / персонаж
   if(page===2) drawEnemy(enemies.level2);
-  if(page===3) enemies.level3.forEach(drawEnemy);
+  if(page===3) enemies.level3.forEach(en => drawEnemy(en));
   if(page===4) drawGirl();
+
   drawKen();
-  ctx.fillStyle="#fff";ctx.fillText("Уровень: "+page,14,30);
-  if(page===4&&!showOops&&!showOops2&&nearGirl()){
-    ctx.fillStyle="yellow";ctx.fillText("Нажми A",canvas.width-300,canvas.height-260);
+
+  // HUD
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
+  ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: ' + page, 14, 30);
+
+  // подсказка около девушки
+  if(page===4 && !showOops && !showOops2 && nearGirl()){
+    ctx.fillStyle='yellow'; ctx.font='20px monospace';
+    ctx.fillText('Нажми A', canvas.width - 300, canvas.height - 260);
   }
+  // показываем oops экраны (на весь экран)
   if(showOops){
-    if(images.oops) ctx.drawImage(images.oops,0,0,canvas.width,canvas.height);
-    else drawPlaceholder(100,100,400,300,"oops");
+    if(images.oops) ctx.drawImage(images.oops, 0, 0, canvas.width, canvas.height);
+    else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops');
   }
   if(showOops2){
-    if(images.oops2) ctx.drawImage(images.oops2,0,0,canvas.width,canvas.height);
-    else drawPlaceholder(100,100,400,300,"oops2");
+    if(images.oops2) ctx.drawImage(images.oops2, 0, 0, canvas.width, canvas.height);
+    else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops2');
   }
 }
 
-oopsBtn.addEventListener("click",()=>{
-  showOops=false;showOops2=true;oopsBtn.style.display="none";playSound("kitty");
+function loop(){
+  try{
+    update(); render();
+    requestAnimationFrame(loop);
+  }catch(err){
+    overlay.style.display='block';
+    overlay.style.background='rgba(128,0,0,0.9)';
+    overlay.textContent = 'Runtime error: ' + (err && err.message ? err.message : err);
+    console.error(err);
+  }
+}
+
+/* ---------- старт ---------- */
+preloadAll().then(()=>{
+  placeEntities();
+  // ждем пользовательского взаимодействия для звука (см. overlay)
+  loop();
+}).catch(e=>{
+  overlay.style.display='block';
+  overlay.textContent='Ошибка при старте: '+e;
+  console.error(e);
 });
 
-// ================= ЦИКЛ =================
-function loop(){update();render();requestAnimationFrame(loop);}
-preloadAll().then(()=>{placeEntities();loop();});
+/* ---------- diagnostics helper (опционально) ---------- */
+window.addEventListener('error', (e) => {
+  overlay.style.display = 'block';
+  overlay.style.background = 'rgba(128,0,0,0.9)';
+  overlay.textContent = 'Error: ' + (e && e.message ? e.message : e);
+  console.error(e.error || e.message);
+});
+
 </script>
 </body>
 </html>
