@@ -118,6 +118,8 @@ function drawEnemy(en){
   const set = (en.action === 'punch') ? [images.mushpunch].filter(Boolean) : [images.mushidle1, images.mushidle2].filter(Boolean);
   if(set.length === 0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
   const img = set[Math.floor(en.animTimer/12) % set.length];
+  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
+}
   function drawGirl(){
   const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
   if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
@@ -182,12 +184,14 @@ async function preloadAll(){
   SOUNDS = {};
   
   const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
-  const soundPromises = [
-    loadSound('fail', 'fail.mp3'),
-    loadSound('kitty', 'kitty.mp3')
-  ];
   
-  await Promise.all([...imagePromises, ...soundPromises]);
+  // ВРЕМЕННО ОТКЛЮЧИМ ЗВУКИ ДЛЯ ДИАГНОСТИКИ
+  // const soundPromises = [
+  //   loadSound('fail', 'fail.mp3'),
+  //   loadSound('kitty', 'kitty.mp3')
+  // ];
+  
+  await Promise.all(imagePromises);
   
   if(missing.length){
     overlay.textContent = 'Не загружены: ' + missing.join(', ');
@@ -245,7 +249,6 @@ function handleAttackOrInteract(){
     }
     return;
   }
-
   if(page === 3){
     for(const en of enemies.level3){
       if(en.alive && isColliding(ken,en)){
@@ -259,7 +262,8 @@ function handleAttackOrInteract(){
     return;
   }
 }
-  // ================= КОНФЕТТИ =================
+
+// ================= КОНФЕТТИ =================
 function startConfetti(){
   confetti = Array.from({length:120}, ()=>({
     x: Math.random()*canvas.width,
@@ -369,7 +373,6 @@ preloadAll().then(()=>{
   overlay.textContent='Ошибка при старте: '+e;
   console.error(e);
 });
-  
+</script>
 </body>
 </html>
-  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
