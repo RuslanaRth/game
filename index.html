@@ -158,8 +158,8 @@ function placeEntities(){
   girl.x = canvas.width - 280; girl.y = ground;
 }
 
-function isColliding(a,b){
-  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a, b){
+  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 function drawPlaceholder(x,y,w,h,label){
@@ -527,4 +527,5 @@ window.addEventListener('error', (e) => {
 </script>
 </body>
 </html>    
+
 
