@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ken — test levels</title>
+<title>Ken — сюжет</title>
 <style>
   html,body{height:100%;margin:0;background:#000;font-family:monospace;}
-  canvas{display:block; width:100vw; height:100vh;}
+  canvas{display:block;width:100vw;height:100vh;}
   #overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
   #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
 </style>
@@ -17,372 +17,330 @@
 <button id="oopsBtn">Oops!</button>
 
 <script>
-// ================= ПЕРЕМЕННЫЕ И ОБЪЕКТЫ ПЕРВЫМИ =================
 let images = {};
-let missing = [];
 let SOUNDS = {};
+let missing = [];
 let page = 1;
 let showOops = false, showOops2 = false;
-let confetti = [];
 
-// ГЛАВНЫЙ ПЕРСОНАЖ - РАЗМЕР 200x200!
-const ken = {
-  x: 50, y: 0, w: 200, h: 200,  // ← ИСПРАВЛЕНО: 200x200
-  vx: 6, action: 'idle', frame: 0, 
-  animTimer: 0, facing: 'right'
-};
+// главный герой
+const ken = {x:50,y:0,w:200,h:200,vx:6,action:'idle',frame:0,animTimer:0,facing:'right'};
 
+// враги
 const enemies = {
-  level2: { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },  // ← 200x200
+  level2: {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
   level3: [
-    { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },  // ← 200x200
-    { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }   // ← 200x200
+    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
+    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0}
   ]
 };
 
-const girl = { x:0, y:0, w:160, h:260 };
+// девушка
+const girl = {x:0,y:0,w:220,h:200};
 
-// ================= БАЗОВЫЕ ФУНКЦИИ =================
+// ================= БАЗА =================
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const overlay = document.getElementById("overlay");
+const oopsBtn = document.getElementById("oopsBtn");
+
 function resize(){
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   placeEntities();
 }
+window.addEventListener("resize",resize);
+resize();
 
 function placeEntities(){
-  ken.y = canvas.height - ken.h - 20;
-  enemies.level2.x = Math.max(300, canvas.width - 400);
-  enemies.level2.y = canvas.height - enemies.level2.h - 20;
-  enemies.level3[0].x = Math.max(200, canvas.width - 800);
-  enemies.level3[0].y = canvas.height - enemies.level3[0].h - 20;
-  enemies.level3[1].x = Math.max(300, canvas.width - 400);
-  enemies.level3[1].y = canvas.height - enemies.level3[1].h - 20;
-  girl.x = canvas.width - 220;
-  girl.y = canvas.height - girl.h - 40;
+  const ground = canvas.height - 200 - 20; // нижняя линия
+  ken.y = ground;
+  enemies.level2.x = canvas.width - 400; enemies.level2.y = ground;
+  enemies.level3[0].x = canvas.width - 600; enemies.level3[0].y = ground;
+  enemies.level3[1].x = canvas.width - 300; enemies.level3[1].y = ground;
+  girl.x = canvas.width - 280; girl.y = ground;
 }
 
-function isColliding(a, b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a,b){
+  return !(a.x+a.w<b.xa.x>b.x+b.wa.y+a.h<b.y||a.y>b.y+b.h);
 }
 
 function drawPlaceholder(x,y,w,h,label){
-  ctx.fillStyle='#222'; ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle='#555'; ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
+  ctx.fillStyle="#222";ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle="#555";ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.fillStyle="#fff";ctx.font="14px monospace";ctx.fillText(label,x+6,y+18);
 }
 
-// ================= ФУНКЦИИ ОТРИСОВКИ =================
+// ================= ОТРИСОВКА =================
 function drawKen(){
-  const idleSet = [images.idle, images.idle1].filter(Boolean);
-  const walkSet = [images.walk1, images.walk2].filter(Boolean);
-  const punchImg = images.punch || null;
-
-  let img = null;
-  if(ken.action === 'walk' && walkSet.length) {
-    img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
-  } else if(ken.action === 'punch' && punchImg) {
-    img = punchImg;
-  } else if(idleSet.length) {
-    img = idleSet[Math.floor(ken.animTimer/20) % idleSet.length];
-  }
-
-  if(!img){ 
-    drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken'); 
-    return; 
-  }
-
+  let set=[images.idle,images.idle1].filter(Boolean);
+  let walk=[images.walk1,images.walk2].filter(Boolean);
+  let img=null;
+  if(ken.action==="walk"&&walk.length){img=walk[Math.floor(ken.animTimer/10)%walk.length];}
+  else if(ken.action==="punch"&&images.punch){img=images.punch;}
+  else if(set.length){img=set[Math.floor(ken.animTimer/20)%set.length];}
+  if(!img){drawPlaceholder(ken.x,ken.y,ken.w,ken.h,"Ken");return;}
   ctx.save();
-  if(ken.facing === 'left'){ 
-    ctx.scale(-1,1); 
-    ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h); 
-  } else {
-    ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
-  }
+  if(ken.facing==="left"){ctx.scale(-1,1);ctx.drawImage(img,-ken.x-ken.w,ken.y,ken.w,ken.h);}
+  else{ctx.drawImage(img,ken.x,ken.y,ken.w,ken.h);}
   ctx.restore();
-}
-
-function drawDeathPuffs(){
-  const en2 = enemies.level2;
-  if(!en2.alive && images.mushdeath){
-    ctx.drawImage(images.mushdeath, en2.x, en2.y, en2.w, en2.h);
-  }
-  enemies.level3.forEach(en=>{
-    if(!en.alive && images.mushdeath){
-      ctx.drawImage(images.mushdeath, en.x, en.y, en.w, en.h);
-    }
-  });
 }
 
 function drawEnemy(en){
   if(!en.alive) return;
-  const set = (en.action === 'punch') ? [images.mushpunch].filter(Boolean) : [images.mushidle1, images.mushidle2].filter(Boolean);
-  if(set.length === 0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
-  const img = set[Math.floor(en.animTimer/12) % set.length];
-  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
+  let set=[images.mushidle1,images.mushidle2].filter(Boolean);
+  if(en.action==="punch"&&images.mushpunch) set=[images.mushpunch];
+  if(set.length===0){drawPlaceholder(en.x,en.y,en.w,en.h,"Mush");return;}
+  let img=set[Math.floor(en.animTimer/12)%set.length];
+  ctx.drawImage(img,en.x,en.y,en.w,en.h);
+}
+
+function drawDeathPuffs(){
+  if(!enemies.level2.alive&&images.mushdeath)
+    ctx.drawImage(images.mushdeath,enemies.level2.x,enemies.level2.y,enemies.level2.w,enemies.level2.h);
+  enemies.level3.forEach(en=>{
+    if(!en.alive&&images.mushdeath)
+      ctx.drawImage(images.mushdeath,en.x,en.y,en.w,en.h);
+  });
 }
 
 function drawGirl(){
-  const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
-  if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
-  const img = frames[Math.floor(Date.now()/400) % frames.length];
-  ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
-}
-
-// ================= ИНИЦИАЛИЗАЦИЯ =================
-window.addEventListener('error', (e)=> {
-  const ov = document.getElementById('overlay');
-  ov.style.display='block';
-  ov.style.background='rgba(128,0,0,0.9)';
-  ov.textContent = 'Error: ' + e.message + ' (line ' + e.lineno + ')';
-  console.error(e.error || e.message);
-});
-
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const overlay = document.getElementById('overlay');
-const oopsBtn = document.getElementById('oopsBtn');
-
-window.addEventListener('resize', resize);
-resize();
-
-const IMAGES = {
-  back1:'back1.jpg', back2:'back2.jpg', back3:'back3.jpg', back4:'back4.jpg',
-  idle:'idle.png', idle1:'idle1.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
-  mushidle1:'mushidle1.png', mushidle2:'mushidle2.png', mushpunch:'mushpunch.png', mushdeath:'mushdeath.png',
-  girl1:'girl1.png', girl2:'girl2.png', girl3:'girl3.png',
-  oops:'oops.jpg', oops2:'oops2.jpg'
+  const frames=[images.girl1,images.girl2,images.girl3].filter(Boolean);
+  if(frames.length===0){drawPlaceholder(girl.x,girl.y,girl.w,girl.h,"Girl");return;}
+  let img=frames[Math.floor(Date.now()/400)%frames.length];
+  ctx.drawImage(img,girl.x,girl.y,girl.w,girl.h);
+  // ================= РЕСУРСЫ =================
+const IMAGES={
+  back1:"back1.jpg",back2:"back2.jpg",back3:"back3.jpg",back4:"back4.jpg",
+  idle:"idle.png",idle1:"idle1.png",walk1:"walk1.png",walk2:"walk2.png",punch:"punch.png",
+  mushidle1:"mushidle1.png",mushidle2:"mushidle2.png",mushpunch:"mushpunch.png",mushdeath:"mushdeath.png",
+  girl1:"girl1.png",girl2:"girl2.png",girl3:"girl3.png",
+  oops:"oops.jpg",oops2:"oops2.jpg"
 };
-
-function loadImage(key,src){
-  return new Promise(res=>{
-    const img = new Image();
-    img.onload = ()=>{ images[key]=img; res({ok:true,key}); };
-    img.onerror = ()=>{ missing.push(src); images[key]=null; res({ok:false,key}); };
-    img.src = src;
-  });
+function loadImage(k,src){
+  return new Promise(res=>{let img=new Image();img.onload=()=>{images[k]=img;res();};img.onerror=()=>{images[k]=null;res();};img.src=src;});
 }
-
-function loadSound(key, src) {
-  return new Promise(resolve => {
-    const audio = new Audio();
-    audio.preload = 'auto';
-    audio.oncanplaythrough = () => { 
-      SOUNDS[key] = audio; 
-      resolve({ok:true,key}); 
-    };
-    audio.onerror = () => { 
-      missing.push(src); 
-      SOUNDS[key] = null; 
-      resolve({ok:false,key}); 
-    };
-    audio.src = src;
-  });
+function loadSound(k,src){
+  return new Promise(res=>{let a=new Audio();a.oncanplaythrough=()=>{SOUNDS[k]=a;res();};a.onerror=()=>{SOUNDS[k]=null;res();};a.src=src;});
 }
-
 async function preloadAll(){
-  overlay.textContent = 'Загружаю ресурсы...';
-  missing=[]; images={};
-  SOUNDS = {};
-  
-  const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
-  
-  // ВКЛЮЧАЕМ ЗВУКИ ОБРАТНО!
-  const soundPromises = [
-    loadSound('fail', 'fail.mp3'),
-    loadSound('kitty', 'kitty.mp3')
-  ];
-  
-  await Promise.all([...imagePromises, ...soundPromises]);
-  
-  if(missing.length){
-    overlay.textContent = 'Не загружены: ' + missing.join(', ');
-  } else {
-    overlay.textContent = 'Управление: ← → — движение. Space — удар/действие.';
-    setTimeout(()=>overlay.style.display='none',1200);
-  }
-}
-
-function playAudioSafe(soundName){
-  if(!SOUNDS[soundName]) return;
-  try{ 
-    const audio = SOUNDS[soundName].cloneNode();
-    const p = audio.play(); 
-    if(p && p.catch) p.catch(()=>{}); 
-  }catch(e){}
+  overlay.textContent="Загружаю ресурсы...";
+  let promises=[...Object.entries(IMAGES).map(([k,s])=>loadImage(k,s)),
+    loadSound("fail","fail.mp3"),
+    loadSound("kitty","kitty.mp3"),
+    loadSound("hit","hit.mp3"),
+    loadSound("whiff","whiff.mp3")];
+  await Promise.all(promises);
+  overlay.style.display="none";
 }
 
 // ================= УПРАВЛЕНИЕ =================
-const keys = {};
-window.addEventListener('keydown', (e)=>{
-  if(e.code === 'Space'){
-    e.preventDefault();
-    keys['Space'] = true;  // ← ДОБАВЛЕНО: сохраняем нажатие пробела
-    handleAttackOrInteract();
-    return;
-  }
-  if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code]=true;
+const keys={};
+window.addEventListener("keydown",e=>{
+  if(e.code==="Space"){e.preventDefault();keys["Space"]=true;handleAction();}
+  if(e.code==="ArrowLeft"||e.code==="ArrowRight") keys[e.code]=true;
 });
-window.addEventListener('keyup', (e)=>{
-  if(e.code === 'Space') keys['Space'] = false;  // ← ДОБАВЛЕНО: отпускание пробела
-  if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code]=false;
+window.addEventListener("keyup",e=>{
+  if(e.code==="Space") keys["Space"]=false;
+  if(e.code==="ArrowLeft"||e.code==="ArrowRight") keys[e.code]=false;
 });
+
+function playSound(name){
+  if(!SOUNDS[name]) return;
+  let a=SOUNDS[name].cloneNode();a.play().catch(()=>{});
+}
 
 function nearGirl(){
-  return (ken.x + ken.w/2 >= canvas.width - 320) || isColliding(ken, girl);
+  return isColliding(ken,girl);
 }
 
-function handleAttackOrInteract(){
-  if(showOops || showOops2) return;
-
-  // ПРОБЕЛ РАБОТАЕТ ДЛЯ УДАРА
-  if(keys['Space'] && ken.action !== 'punch') {
-    ken.action = 'punch';
-    
-    if(page === 4 && nearGirl()){
-      showOops = true;
-      playAudioSafe('fail');
-      oopsBtn.style.display='block';
-      oopsBtn.focus && oopsBtn.blur();
-      return;
-    }
-    if(page === 2){
-      const en = enemies.level2;
-      if(en.alive && isColliding(ken,en)){
-        en.hp -= 1;
-        en.action = 'punch'; en.hitTimer = 18;
-        playAudioSafe('fail');
-        if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
-      }
-    }
-
-    if(page === 3){
-      for(const en of enemies.level3){
-        if(en.alive && isColliding(ken,en)){
-          en.hp -= 1;
-          en.action = 'punch'; en.hitTimer = 18;
-          playAudioSafe('fail');
-          if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
-        }
-      }
-    }
-
-    // Автоматический возврат из удара
-    setTimeout(() => {
-      if(ken.action === 'punch') ken.action = 'idle';
-    }, 300);
+function handleAction(){
+  if(showOops||showOops2) return;
+  if(page===4&&nearGirl()){ // событие с девушкой
+    showOops=true;
+    playSound("fail");
+    oopsBtn.style.display="block";
+    return;
   }
+  // обычный удар
+  ken.action="punch";
+  let hit=false;
+  if(page===2&&enemies.level2.alive&&isColliding(ken,enemies.level2)){
+    enemies.level2.hp--;hit=true;enemies.level2.action="punch";enemies.level2.hitTimer=15;
+    if(enemies.level2.hp<=0) enemies.level2.alive=false;
+  }
+  if(page===3){
+    enemies.level3.forEach(en=>{
+      if(en.alive&&isColliding(ken,en)){
+        en.hp--;hit=true;en.action="punch";en.hitTimer=15;
+        if(en.hp<=0) en.alive=false;
+      }
+    });
+  }
+  playSound(hit?"hit":"whiff");
+  setTimeout(()=>{if(ken.action==="punch") ken.action="idle";},250);
 }
 
-// ================= КОНФЕТТИ =================
-function startConfetti(){
-  confetti = Array.from({length:120}, ()=>({
-    x: Math.random()*canvas.width,
-    y: -Math.random()*canvas.height,
-    size: Math.random()*6+4,
-    speed: Math.random()*2+1,
-    color: "hsl(" + (Math.random()*360) + ",100%,50%)",
-    angle: Math.random()*Math.PI*2
-  }));
-}
-
-function updateAndDrawConfetti(){
-  confetti.forEach(c=>{
-    c.y += c.speed;
-    c.x += Math.sin(c.angle)*1;
-    c.angle += 0.02;
-    if(c.y > canvas.height+20){ c.y = -10; c.x = Math.random()*canvas.width; }
-    ctx.fillStyle = c.color;
-    ctx.fillRect(c.x,c.y,c.size,c.size);
-  });
-}
-
-// ================= ОБНОВЛЕНИЕ И ОТРИСОВКА =================
+// ================= ОБНОВЛЕНИЕ =================
 function update(){
-  if(!showOops && !showOops2){
-    if(keys['ArrowRight']) { ken.x += ken.vx; ken.action='walk'; ken.facing='right'; }
-    else if(keys['ArrowLeft']) { ken.x -= ken.vx; ken.action='walk'; ken.facing='left'; }
-    else if(ken.action !== 'punch') ken.action='idle';
+  if(!showOops&&!showOops2){
+    if(keys["ArrowRight"]){ken.x+=ken.vx;ken.action="walk";ken.facing="right";}
+    else if(keys["ArrowLeft"]){ken.x-=ken.vx;ken.action="walk";ken.facing="left";}
+    else if(ken.action!=="punch") ken.action="idle";
   }
-
-  ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
+  ken.x=Math.max(0,Math.min(canvas.width-ken.w,ken.x));
   ken.animTimer++;
-
-  const e2 = enemies.level2;
-  if(e2.hitTimer > 0){ e2.hitTimer--; if(e2.hitTimer===0) e2.action='idle'; }
-  enemies.level3.forEach(en=>{ if(en.hitTimer>0){ en.hitTimer--; if(en.hitTimer===0) en.action='idle'; } });
-
-  if(page===1 && ken.x >= canvas.width - ken.w - 10){ page=2; ken.x=40; }
-  else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page=3; ken.x=40; }
-  else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page=4; ken.x=40; }
-
-  if(showOops2) updateAndDrawConfetti();
+  if(page===1&&ken.x>=canvas.width-ken.w-10){page=2;ken.x=40;}
+  else if(page===2&&ken.x>=canvas.width-ken.w-10&&!enemies.level2.alive){page=3;ken.x=40;}
+  else if(page===3&&ken.x>=canvas.width-ken.w-10){page=4;ken.x=40;}
+  if(enemies.level2.hitTimer>0){enemies.level2.hitTimer--;if(enemies.level2.hitTimer===0) enemies.level2.action="idle";}
+  enemies.level3.forEach(en=>{if(en.hitTimer>0){en.hitTimer--;if(en.hitTimer===0) en.action="idle";}});
 }
 
 function render(){
-  const bg = (page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
+  const bg=(page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
   if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height);
-  else { ctx.fillStyle='#222'; ctx.fillRect(0,0,canvas.width,canvas.height); }
-
+  else {ctx.fillStyle="#111";ctx.fillRect(0,0,canvas.width,canvas.height);}
+  // прах (сзади)
   drawDeathPuffs();
-
   if(page===2) drawEnemy(enemies.level2);
-  if(page===3) enemies.level3.forEach(en=>drawEnemy(en));
+  if(page===3) enemies.level3.forEach(drawEnemy);
   if(page===4) drawGirl();
-
   drawKen();
+  ctx.fillStyle="#fff";ctx.fillText("Уровень: "+page,14,30);
+}
+  <!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ken — сюжет</title>
+<style>
+  html,body{height:100%;margin:0;background:#000;font-family:monospace;}
+  canvas{display:block;width:100vw;height:100vh;}
+  #overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
+  #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="overlay">Загрузка ресурсов...</div>
+<button id="oopsBtn">Oops!</button>
 
-  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(8,8,170,36);
-  ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: '+page, 14, 30);
+<script>
+let images = {};
+let SOUNDS = {};
+let missing = [];
+let page = 1;
+let showOops = false, showOops2 = false;
 
-  if(page===4 && !showOops && !showOops2 && nearGirl()){
-    ctx.fillStyle='yellow'; ctx.font='20px monospace';
-    ctx.fillText('Подойди и нажми Space', canvas.width - 360, canvas.height - 340);
+// главный герой
+const ken = {x:50,y:0,w:200,h:200,vx:6,action:'idle',frame:0,animTimer:0,facing:'right'};
+
+// враги
+const enemies = {
+  level2: {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
+  level3: [
+    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
+    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0}
+  ]
+};
+
+// девушка
+const girl = {x:0,y:0,w:220,h:200};
+
+// ================= БАЗА =================
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const overlay = document.getElementById("overlay");
+const oopsBtn = document.getElementById("oopsBtn");
+
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  placeEntities();
+}
+window.addEventListener("resize",resize);
+resize();
+
+function placeEntities(){
+  const ground = canvas.height - 200 - 20; // нижняя линия
+  ken.y = ground;
+  enemies.level2.x = canvas.width - 400; enemies.level2.y = ground;
+  enemies.level3[0].x = canvas.width - 600; enemies.level3[0].y = ground;
+  enemies.level3[1].x = canvas.width - 300; enemies.level3[1].y = ground;
+  girl.x = canvas.width - 280; girl.y = ground;
+}
+
+function isColliding(a,b){
+  return !(a.x+a.w<b.xa.x>b.x+b.wa.y+a.h<b.y||a.y>b.y+b.h);
+}
+
+function drawPlaceholder(x,y,w,h,label){
+  ctx.fillStyle="#222";ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle="#555";ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.fillStyle="#fff";ctx.font="14px monospace";ctx.fillText(label,x+6,y+18);
+}
+
+// ================= ОТРИСОВКА =================
+function drawKen(){
+  let set=[images.idle,images.idle1].filter(Boolean);
+  let walk=[images.walk1,images.walk2].filter(Boolean);
+  let img=null;
+  if(ken.action==="walk"&&walk.length){img=walk[Math.floor(ken.animTimer/10)%walk.length];}
+  else if(ken.action==="punch"&&images.punch){img=images.punch;}
+  else if(set.length){img=set[Math.floor(ken.animTimer/20)%set.length];}
+  if(!img){drawPlaceholder(ken.x,ken.y,ken.w,ken.h,"Ken");return;}
+  ctx.save();
+  if(ken.facing==="left"){ctx.scale(-1,1);ctx.drawImage(img,-ken.x-ken.w,ken.y,ken.w,ken.h);}
+  else{ctx.drawImage(img,ken.x,ken.y,ken.w,ken.h);}
+  ctx.restore();
+}
+
+function drawEnemy(en){
+  if(!en.alive) return;
+  let set=[images.mushidle1,images.mushidle2].filter(Boolean);
+  if(en.action==="punch"&&images.mushpunch) set=[images.mushpunch];
+  if(set.length===0){drawPlaceholder(en.x,en.y,en.w,en.h,"Mush");return;}
+  let img=set[Math.floor(en.animTimer/12)%set.length];
+  ctx.drawImage(img,en.x,en.y,en.w,en.h);
+}
+
+function drawDeathPuffs(){
+  if(!enemies.level2.alive&&images.mushdeath)
+    ctx.drawImage(images.mushdeath,enemies.level2.x,enemies.level2.y,enemies.level2.w,enemies.level2.h);
+  enemies.level3.forEach(en=>{
+    if(!en.alive&&images.mushdeath)
+      ctx.drawImage(images.mushdeath,en.x,en.y,en.w,en.h);
+  });
+}
+
+function drawGirl(){
+  const frames=[images.girl1,images.girl2,images.girl3].filter(Boolean);
+  if(frames.length===0){drawPlaceholder(girl.x,girl.y,girl.w,girl.h,"Girl");return;}
+  let img=frames[Math.floor(Date.now()/400)%frames.length];
+  ctx.drawImage(img,girl.x,girl.y,girl.w,girl.h);
+}
+  if(page===4&&!showOops&&!showOops2&&nearGirl()){
+    ctx.fillStyle="yellow";ctx.fillText("Нажми A",canvas.width-300,canvas.height-260);
   }
-
   if(showOops){
-    if(images.oops) ctx.drawImage(images.oops, canvas.width/2 - 200, canvas.height/2 - 150, 400, 300);
-    else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops');
+    if(images.oops) ctx.drawImage(images.oops,0,0,canvas.width,canvas.height);
+    else drawPlaceholder(100,100,400,300,"oops");
   }
   if(showOops2){
-    if(images.oops2) ctx.drawImage(images.oops2, canvas.width/2 - 200, canvas.height/2 - 150, 400, 300);
-    else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops2');
+    if(images.oops2) ctx.drawImage(images.oops2,0,0,canvas.width,canvas.height);
+    else drawPlaceholder(100,100,400,300,"oops2");
   }
 }
 
-// ================= ОБРАБОТЧИК КНОПКИ =================
-oopsBtn.addEventListener('click', ()=>{
-  showOops = false;
-  showOops2 = true;
-  oopsBtn.style.display='none';
-  playAudioSafe('kitty');
-  startConfetti();
+oopsBtn.addEventListener("click",()=>{
+  showOops=false;showOops2=true;oopsBtn.style.display="none";playSound("kitty");
 });
 
-// ================= ИГРОВОЙ ЦИКЛ =================
-function loop(){
-  try{
-    update();
-    render();
-    requestAnimationFrame(loop);
-  }catch(err){
-    overlay.style.display='block';
-    overlay.style.background='rgba(128,0,0,0.9)';
-    overlay.textContent = 'Runtime error: ' + (err && err.message ? err.message : err);
-    console.error(err);
-  }
-}
-  // ================= ЗАПУСК =================
-preloadAll().then(()=>{
-  overlay.style.display='none';
-  placeEntities();
-  oopsBtn.style.display='none';
-  loop();
-}).catch(e=>{
-  overlay.style.display='block';
-  overlay.textContent='Ошибка при старте: '+e;
-  console.error(e);
-});
+// ================= ЦИКЛ =================
+function loop(){update();render();requestAnimationFrame(loop);}
+preloadAll().then(()=>{placeEntities();loop();});
 </script>
 </body>
 </html>
-
