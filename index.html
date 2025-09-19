@@ -1,9 +1,9 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ken — сюжет (fixed full)</title>
+<title>Ken — сюжет (fixed)</title>
 <style>
   html,body{height:100%;margin:0;background:#000;font-family:monospace;}
   canvas{display:block;width:100vw;height:100vh;}
@@ -17,14 +17,15 @@
 <button id="oopsBtn">Oops!</button>
 
 <script>
-let images = {}, SOUNDS = {}, missing = [];
-let page = 1, showOops=false, showOops2=false;
+let images={},SOUNDS={},missing=[];
+let page=1, showOops=false, showOops2=false;
+
 const ken={x:50,y:0,w:200,h:200,vx:6,action:'idle',animTimer:0,facing:'right'};
 const enemies={
-  level2:{x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0,puffDrawn:false},
+  level2:{x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
   level3:[
-    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0,puffDrawn:false},
-    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0,puffDrawn:false}
+    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
+    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0}
   ]
 };
 const girl={x:0,y:0,w:220,h:200};
@@ -34,12 +35,8 @@ const ctx=canvas.getContext('2d');
 const overlay=document.getElementById('overlay');
 const oopsBtn=document.getElementById('oopsBtn');
 
-function resize(){
-  canvas.width=window.innerWidth;
-  canvas.height=window.innerHeight;
-  placeEntities();
-}
-window.addEventListener('resize',resize);
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;placeEntities();}
+window.addEventListener('resize', resize);
 resize();
 
 function placeEntities(){
@@ -51,176 +48,121 @@ function placeEntities(){
   girl.x=canvas.width-280; girl.y=ground;
 }
 
-function isColliding(a, b){
-  return !(a.x+a.w<b.x || a.x>b.x+b.w || a.y+a.h<b.y || a.y>b.y+b.h);
+function isColliding(a,b){return !(a.x+a.w<b.xa.x>b.x+b.wa.y+a.h<b.y||a.y>b.y+b.h);}
+function drawPlaceholder(x,y,w,h,label){ctx.fillStyle='#222';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#555';ctx.strokeRect(x+1,y+1,w-2,h-2);ctx.fillStyle='#fff';ctx.font='14px monospace';ctx.fillText(label,x+6,y+18);}
+
+function drawKen(){
+  const idleSet=[images.idle,images.idle1].filter(Boolean);
+  const walkSet=[images.walk1,images.walk2].filter(Boolean);
+  const punchImg=images.punch||null;
+  let img=null;
+  if(ken.action==='walk'&&walkSet.length) img=walkSet[Math.floor(ken.animTimer/10)%walkSet.length];
+  else if(ken.action==='punch'&&punchImg) img=punchImg;
+  else if(idleSet.length) img=idleSet[Math.floor(ken.animTimer/20)%idleSet.length];
+  if(!img){drawPlaceholder(ken.x,ken.y,ken.w,ken.h,'Ken');return;}
+  ctx.save();
+  if(ken.facing==='left'){ctx.scale(-1,1);ctx.drawImage(img,-ken.x-ken.w,ken.y,ken.w,ken.h);}
+  else ctx.drawImage(img,ken.x,ken.y,ken.w,ken.h);
+  ctx.restore();
 }
 
-function drawPlaceholder(x,y,w,h,label){
-  ctx.fillStyle='#222'; ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle='#555'; ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label,x+6,y+18);
+function drawEnemy(en){
+  if(!en.alive) return;
+  const set=(en.action==='punch')?[images.mushpunch].filter(Boolean):[images.mushidle1,images.mushidle2].filter(Boolean);
+  if(set.length===0){drawPlaceholder(en.x,en.y,en.w,en.h,'Mush');return;}
+  const img=set[Math.floor(en.animTimer/12)%set.length];
+  if(img) ctx.drawImage(img,en.x,en.y,en.w,en.h);
 }
 
-/* ---------- загрузка изображений ---------- */
-const IMAGES={
-  back1:'back1.jpg', back2:'back2.jpg', back3:'back3.jpg', back4:'back4.jpg',
-  idle:'idle.png', idle1:'idle1.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
-  mushidle1:'mushidle1.png', mushidle2:'mushidle2.png', mushpunch:'mushpunch.png', mushdeath:'mushdeath.png',
-  girl1:'girl1.png', girl2:'girl2.png', girl3:'girl3.png',
-  oops:'oops.jpg', oops2:'oops2.jpg'
-};
-function loadImage(key,src){
-  return new Promise(res=>{
-    const img=new Image();
-    img.onload=()=>{images[key]=img;res({ok:true,key});};
-    img.onerror=()=>{images[key]=null;missing.push(src);res({ok:false,key});};
-    img.src=src;
-  });
+function drawDeathPuffs(){ /* Прах исчезает сразу, ничего не рисуем */ }
+
+function drawGirl(){
+  const frames=[images.girl1,images.girl2,images.girl3].filter(Boolean);
+  if(frames.length===0){drawPlaceholder(girl.x,girl.y,girl.w,girl.h,'Girl');return;}
+  const img=frames[Math.floor(Date.now()/400)%frames.length];
+  ctx.drawImage(img,girl.x,girl.y,girl.w,girl.h);
 }
 
-/* ---------- загрузка звуков ---------- */
-function loadSound(key,src){
-  return new Promise(res=>{
-    const a=new Audio();
-    a.preload='auto';
-    a.oncanplaythrough=()=>{SOUNDS[key]=a;res({ok:true,key});};
-    a.onerror=()=>{SOUNDS[key]=null;missing.push(src);res({ok:false,key});};
-    a.src=src;
-  });
-}
+const IMAGES={back1:'back1.jpg',back2:'back2.jpg',back3:'back3.jpg',back4:'back4.jpg',
+  idle:'idle.png',idle1:'idle1.png',walk1:'walk1.png',walk2:'walk2.png',punch:'punch.png',
+  mushidle1:'mushidle1.png',mushidle2:'mushidle2.png',mushpunch:'mushpunch.png',mushdeath:'mushdeath.png',
+  girl1:'girl1.png',girl2:'girl2.png',girl3:'girl3.png',
+  oops:'oops.jpg',oops2:'oops2.jpg'
+              function loadImage(key,src){return new Promise(res=>{const img=new Image();img.onload=()=>{images[key]=img;res({ok:true,key});};img.onerror=()=>{images[key]=null;missing.push(src);res({ok:false,key});};img.src=src;});}
+function loadSound(key,src){return new Promise(resolve=>{const a=new Audio();a.preload='auto';a.oncanplaythrough=()=>{SOUNDS[key]=a;resolve({ok:true,key});};a.onerror=()=>{SOUNDS[key]=null;missing.push(src);resolve({ok:false,key});};a.src=src;});}
 
 async function preloadAll(){
-  overlay.textContent='Загружаю ресурсы...';
-  missing=[];
-  images={}; SOUNDS={};
+  overlay.textContent='Загружаю ресурсы...'; missing=[]; images={}; SOUNDS={};
   const imagePromises=Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
-  const soundPromises=[
-    loadSound('fail','fail.mp3'),
-    loadSound('kitty','kitty.mp3'),
-    loadSound('hit','hit.mp3'),
-    loadSound('whiff','whiff.mp3')
-  ];
+  const soundPromises=[loadSound('fail','fail.mp3'),loadSound('kitty','kitty.mp3'),loadSound('hit','hit.mp3'),loadSound('whiff','whiff.mp3')];
   await Promise.all([...imagePromises,...soundPromises]);
-  if(missing.length) overlay.textContent='Не загружены: '+missing.join(', ');
-  else overlay.textContent='Кликни или нажми любую клавишу, чтобы включить звук';
-  /* ---------- разблокировка аудио ---------- */
+  overlay.textContent=missing.length?'Не загружены: '+missing.join(', '):'Кликни или нажми любую клавишу, чтобы включить звук';
+}
+
 let audioUnlocked=false;
 function unlockAudio(){
-  if(audioUnlocked) return;
-  audioUnlocked=true;
-  Object.values(SOUNDS).forEach(a=>{
-    if(!a) return;
-    a.volume=0; a.play().then(()=>{a.pause(); a.currentTime=0; a.volume=1}).catch(()=>{});
-  });
+  if(audioUnlocked) return; audioUnlocked=true;
+  try{const aCtx=new (window.AudioContext||window.webkitAudioContext)();aCtx.resume().catch(()=>{});}catch(e){}
+  Object.values(SOUNDS).forEach(a=>{if(!a) return; try{a.volume=0;a.play().catch(()=>{});setTimeout(()=>{a.pause();a.currentTime=0;a.volume=1;},60);}catch(e){}});
   overlay.style.display='none';
 }
 window.addEventListener('pointerdown',unlockAudio,{once:true});
 window.addEventListener('keydown',unlockAudio,{once:true});
 
-function playSound(name){
-  const a=SOUNDS[name];
-  if(!a) return;
-  try{
-    const node=a.cloneNode();
-    node.play().catch(()=>{});
-  }catch(e){}
-}
+function playSound(name){const a=SOUNDS[name];if(!a) return; try{const node=a.cloneNode();node.play().catch(()=>{});}catch(e){}}
 
-/* ---------- ввод ---------- */
-const keys={};
-let lastPunchTime=0,punchCooldown=180;
-window.addEventListener('keydown',e=>{
-  if(e.code==='Space'){e.preventDefault(); if(e.repeat) return; keys['Space']=true; handleAction(); return;}
-  if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=true;
-});
-window.addEventListener('keyup',e=>{if(e.code==='Space') keys['Space']=false; if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=false; });
+const keys={}; let lastPunchTime=0; const punchCooldown=180;
+window.addEventListener('keydown',(e)=>{if(e.code==='Space'){e.preventDefault();if(e.repeat) return;keys['Space']=true;handleAction();return;}if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=true;});
+window.addEventListener('keyup',(e)=>{if(e.code==='Space') keys['Space']=false;if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=false;});
 
-/* ---------- действия ---------- */
+function attackHitbox(){const range=90;const verticalInset=30;const hb={x:0,y:ken.y+verticalInset,w:range,h:ken.h-verticalInset*1.5};if(ken.facing==='right') hb.x=ken.x+ken.w-30; else hb.x=ken.x-range+30; return hb;}
 function nearGirl(){return isColliding(ken,girl);}
-function attackHitbox(){
-  const range=90, inset=30;
-  const hb={y:ken.y+inset,h:ken.h-inset*1.5};
-  hb.x=(ken.facing==='right')?ken.x+ken.w-30:ken.x-range+30; hb.w=range;
-  return hb;
-}
+
 function handleAction(){
-  unlockAudio();
-  if(showOops||showOops2) return;
-  if(Date.now()-lastPunchTime<punchCooldown) return;
-  lastPunchTime=Date.now();
-
-  if(page===4 && nearGirl()){ showOops=true; playSound('fail'); oopsBtn.style.display='block'; return; }
-
-  ken.action='punch'; let hit=false;
-  const hb=attackHitbox();
-
-  if(page===2){ const en=enemies.level2; if(en.alive && isColliding(hb,en)){ en.hp--; hit=true; en.action='punch'; en.hitTimer=18; if(en.hp<=0){en.alive=false; en.puffDrawn=false;} } }
-  if(page===3){ for(const en of enemies.level3){ if(en.alive && isColliding(hb,en)){ en.hp--; hit=true; en.action='punch'; en.hitTimer=18; if(en.hp<=0){en.alive=false; en.puffDrawn=false;} } } }
-
-  playSound(hit?'hit':'whiff');
-  setTimeout(()=>{if(ken.action==='punch') ken.action='idle';},260);
+  unlockAudio(); if(showOops||showOops2) return;
+  if(Date.now()-lastPunchTime<punchCooldown) return; lastPunchTime=Date.now();
+  if(page===4 && nearGirl()){showOops=true;playSound('fail');oopsBtn.style.display='block'; return;}
+  ken.action='punch'; let hit=false; const hb=attackHitbox();
+  if(page===2){const en=enemies.level2; if(en.alive && isColliding(hb,en)){en.hp--; hit=true; en.action='punch'; en.hitTimer=18; if(en.hp<=0) en.alive=false;}}
+  if(page===3){enemies.level3.forEach(en=>{if(en.alive && isColliding(hb,en)){en.hp--; hit=true; en.action='punch'; en.hitTimer=18; if(en.hp<=0) en.alive=false;}});}
+  playSound(hit?'hit':'whiff'); setTimeout(()=>{if(ken.action==='punch') ken.action='idle';},260);
 }
 
-/* ---------- кнопка oops ---------- */
-oopsBtn.addEventListener('click',()=>{
-  showOops=false; showOops2=true; oopsBtn.style.display='none'; playSound('kitty');
-});
+oopsBtn.addEventListener('click',()=>{showOops=false;showOops2=true;oopsBtn.style.display='none';playSound('kitty');});
 
-/* ---------- отрисовка ---------- */
-function drawKen(){ drawPlaceholder(ken.x,ken.y,ken.w,ken.h,'Ken'); }
-function drawEnemy(en){ if(en.alive) drawPlaceholder(en.x,en.y,en.w,en.h,'Mush'); }
-function drawDeathPuffs(){
-  if(page===4) return;
-  if(!enemies.level2.alive && !enemies.level2.puffDrawn){ drawPlaceholder(enemies.level2.x,enemies.level2.y,enemies.level2.w,enemies.level2.h,'Dust'); enemies.level2.puffDrawn=true; }
-  enemies.level3.forEach(en=>{ if(!en.alive && !en.puffDrawn){ drawPlaceholder(en.x,en.y,en.w,en.h,'Dust'); en.puffDrawn=true; } });
-}
-function drawGirl(){ drawPlaceholder(girl.x,girl.y,girl.w,girl.h,'Girl'); }
-
-function render(){
-  const bg=(page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
-  if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height); else ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  drawDeathPuffs();
-  if(page===2) drawEnemy(enemies.level2);
-  if(page===3) enemies.level3.forEach(drawEnemy);
-  if(page===4) drawGirl();
-  drawKen();
-
-  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
-  ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: '+page,14,30);
-
-  if(page===4 && !showOops && !showOops2 && nearGirl()){
-    ctx.fillStyle='yellow'; ctx.font='20px monospace';
-    ctx.fillText('Нажми A',canvas.width-300,canvas.height-260);
-  }
-
-  if(showOops){ if(images.oops) ctx.drawImage(images.oops,0,0,canvas.width,canvas.height); else drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops'); }
-  if(showOops2){ if(images.oops2) ctx.drawImage(images.oops2,0,0,canvas.width,canvas.height); else drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops2'); }
-}
-  /* ---------- обновление ---------- */
 function update(){
-  if(!showOops && !showOops2){
-    if(keys['ArrowRight']){ ken.x+=ken.vx; ken.action='walk'; ken.facing='right'; }
-    else if(keys['ArrowLeft']){ ken.x-=ken.vx; ken.action='walk'; ken.facing='left'; }
+  if(!showOops&&!showOops2){
+    if(keys['ArrowRight']){ken.x+=ken.vx;ken.action='walk';ken.facing='right';}
+    else if(keys['ArrowLeft']){ken.x-=ken.vx;ken.action='walk';ken.facing='left';}
     else if(ken.action!=='punch') ken.action='idle';
   }
-  ken.x=Math.max(0,Math.min(canvas.width-ken.w,ken.x));
-  ken.animTimer++;
-
-  if(enemies.level2.hitTimer>0){ enemies.level2.hitTimer--; if(enemies.level2.hitTimer===0) enemies.level2.action='idle'; }
-  enemies.level3.forEach(en=>{ if(en.hitTimer>0){ en.hitTimer--; if(en.hitTimer===0) en.action='idle'; } });
-
-  if(page===1 && ken.x>=canvas.width-ken.w-10){ page=2; ken.x=40; }
-  else if(page===2 && ken.x>=canvas.width-ken.w-10 && !enemies.level2.alive){ page=3; ken.x=40; enemies.level3.forEach(e=>e.puffDrawn=false); }
-  else if(page===3 && ken.x>=canvas.width-ken.w-10){ page=4; ken.x=40; enemies.level3.forEach(e=>e.alive=false); }
+  ken.x=Math.max(0,Math.min(canvas.width-ken.w,ken.x)); ken.animTimer++;
+  if(enemies.level2.hitTimer>0){enemies.level2.hitTimer--;if(enemies.level2.hitTimer===0)enemies.level2.action='idle';}
+  enemies.level3.forEach(en=>{if(en.hitTimer>0){en.hitTimer--;if(en.hitTimer===0) en.action='idle';}});
+  if(page===1 && ken.x>=canvas.width-ken.w-10){page=2;ken.x=40;}
+  else if(page===2 && ken.x>=canvas.width-ken.w-10 && !enemies.level2.alive){page=3;ken.x=40;}
+  else if(page===3 && ken.x>=canvas.width-ken.w-10){page=4;ken.x=40;}
+}
+ function render(){
+  const bg=(page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
+  if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height); else {ctx.fillStyle='#111';ctx.fillRect(0,0,canvas.width,canvas.height);}
+  drawDeathPuffs();
+  if(page===2) drawEnemy(enemies.level2);
+  if(page===3) enemies.level3.forEach(en=>drawEnemy(en));
+  if(page===4) drawGirl();
+  drawKen();
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34); ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: '+page,14,30);
+  if(page===4 && !showOops && !showOops2 && nearGirl()){ctx.fillStyle='yellow';ctx.font='20px monospace';ctx.fillText('Нажми A',canvas.width-300,canvas.height-260);}
+  if(showOops){if(images.oops) ctx.drawImage(images.oops,0,0,canvas.width,canvas.height); else drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops');}
+  if(showOops2){if(images.oops2) ctx.drawImage(images.oops2,0,0,canvas.width,canvas.height); else drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops2');}
 }
 
-function loop(){ update(); render(); requestAnimationFrame(loop); }
+function loop(){try{update();render();requestAnimationFrame(loop);}catch(err){overlay.style.display='block';overlay.style.background='rgba(128,0,0,0.9)';overlay.textContent='Runtime error: '+(err&&err.message?err.message:err);console.error(err);}}
 
-/* ---------- старт ---------- */
-preloadAll().then(()=>{ placeEntities(); loop(); }).catch(e=>{overlay.style.display='block'; overlay.textContent='Ошибка при старте: '+e; console.error(e);});
+preloadAll().then(()=>{placeEntities();loop();}).catch(e=>{overlay.style.display='block';overlay.textContent='Ошибка при старте: '+e;console.error(e);});
+
+window.addEventListener('error', (e) => {overlay.style.display='block';overlay.style.background='rgba(128,0,0,0.9)';overlay.textContent='Error: '+(e&&e.message?e.message:e);console.error(e.error||e.message);});
+</script>
 </body>
 </html>
-}
-
-
+};
