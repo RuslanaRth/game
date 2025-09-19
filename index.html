@@ -1,87 +1,237 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Кенчик тест</title>
+<meta charset="utf-8"/>
+<title>Ken — test levels</title>
 <style>
-  body { 
-    margin:0; 
-    overflow:hidden; 
-  }
-  #ken { 
-    position:absolute; 
-    bottom:0; /* Кенчик на краю экрана */
-    left:50px; 
-    width:128px;  
-    height:128px; 
-    z-index:1;
-    filter: brightness(1.5); /* Яркость спрайта */
-  }
+  html,body {height:100%; margin:0; background:#000;}
+  #gameCanvas {display:block; margin:0 auto; background:#222;}
+  #overlay {position:fixed; left:10px; top:10px; color:#fff; font-family: monospace; background:rgba(0,0,0,0.6); padding:6px; border-radius:6px;}
+  #errors {position:fixed; right:10px; top:10px; color:#fff; font-family:monospace; background:rgba(128,0,0,0.6); padding:6px; border-radius:6px; display:none;}
 </style>
 </head>
 <body>
-<!-- Фон JPG -->
-<img src="back1.jpg" style="width:100%; height:100%; position:absolute; z-index:0;">
-
-<!-- Спрайт Кенчика -->
-<img id="ken" src="idle.png" alt="Кенчик">
+<canvas id="gameCanvas" width="900" height="500"></canvas>
+<div id="overlay">Загрузка ресурсов...</div>
+<div id="errors"></div>
 
 <script>
-const ken = document.getElementById('ken');
+/* ------------- Настройки и список файлов ------------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const errorsBox = document.getElementById('errors');
 
-// Спрайты
-const walkFrames = ["walk1.png","walk2.png"];
-const idleFrames = ["idle.png","idle2.png"];
-let frameIndex = 0;
-let frameCounter = 0; // для плавной смены ноги
-let idleIndex = 0;
-let posX = 50;
+const IMAGES = {
+  back1: 'back1.jpg',
+  back2: 'back2.jpg',
+  idle: 'idle.png',
+  idle2: 'idle2.png',
+  walk1: 'walk1.png',
+  walk2: 'walk2.png',
+  punch: 'punch.png',
+  mushidle1: 'mushidle1.png',
+  mushidle2: 'mushidle2.png',
+  mushpunch: 'mushpunch.png',
+  mushdeath: 'mushdeath.png'
+};
 
-// Анимация idle
-setInterval(()=>{
-  if(!ken.classList.contains("moving")){
-    ken.src = idleFrames[idleIndex];
-    idleIndex = (idleIndex + 1) % idleFrames.length;
+/* ------------- Загрузка с обработкой ошибок ------------- */
+let images = {};
+let missing = [];
+
+function loadImage(key, src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { images[key] = img; resolve({ok:true,key}); };
+    img.onerror = () => { missing.push(src); images[key] = null; resolve({ok:false,key}); };
+    img.src = src;
+  });
+}
+
+async function preloadAll() {
+  overlay.textContent = 'Загружаю ресурсы...';
+  const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
+  await Promise.all(promises);
+  if (missing.length) {
+    errorsBox.style.display = 'block';
+    errorsBox.textContent = 'Не загружены: ' + missing.join(', ');
+  } else {
+    errorsBox.style.display = 'none';
   }
-}, 500);
+  overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар. Дошёл до правого края — переход на уровень 2.';
+}
 
-// Управление
-document.addEventListener('keydown', (e) => {
-  ken.classList.add("moving");
+/* ------------- Вспомогательные (рисует заглушку, если картинка не загружена) ------------- */
+function drawPlaceholder(x,y,w,h,label,color='#cc5') {
+  ctx.fillStyle = '#333';
+  ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px monospace';
+  ctx.fillText(label, x+6, y + Math.min(20,h-8));
+}
 
-  if(e.key === "ArrowRight"){
-    posX += 5;
-    ken.style.left = posX + "px";
-    ken.style.transform = "scaleX(1)";
+/* ------------- Игровые сущности ------------- */
+const ken = {
+  x: 50, y: canvas.height - 140, w: 128, h: 128,
+  vx: 5,
+  action: 'idle', frame:0, animTimer:0
+};
 
-    frameCounter++;
-    if(frameCounter >= 5){ 
-      frameCounter = 0;
-      frameIndex = (frameIndex + 1) % walkFrames.length;
-      ken.src = walkFrames[frameIndex];
+const mush = {
+  x: 600, y: canvas.height - 140, w: 128, h: 128,
+  hp: 3, alive: true, action:'idle', frame:0, animTimer:0
+};
+
+let page = 1; // 1 или 2
+
+/* ------------- Управление клавишами ------------- */
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  // предотвращаем прокрутку страницы пробелом
+  if (e.code === 'Space') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+/* ------------- Логика столкновения ------------- */
+function isColliding(a,b) {
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
+}
+
+/* ------------- Отрисовка персонажа с учётом заглушек ------------- */
+function drawKen() {
+  const imgSet = (ken.action === 'walk') ? [images.walk1, images.walk2]
+                : (ken.action === 'punch') ? [images.punch]
+                : [images.idle, images.idle2];
+
+  // анимация кадров
+  ken.animTimer++;
+  if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+
+  const img = imgSet[ken.frame];
+  if (img) ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
+  else drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken', '#88f');
+}
+ /* ------------- Отрисовка врага ------------- */
+function drawMush() {
+  if (!mush.alive) return;
+  const imgSet = (mush.action === 'punch') ? [images.mushpunch]
+                : (mush.action === 'death') ? [images.mushdeath]
+                : [images.mushidle1, images.mushidle2];
+
+  mush.animTimer++;
+  if (mush.animTimer > 12) { mush.animTimer = 0; mush.frame = (mush.frame+1) % imgSet.length; }
+
+  const img = imgSet[mush.frame];
+  if (img) ctx.drawImage(img, mush.x, mush.y, mush.w, mush.h);
+  else if (mush.action === 'death') {
+    // эффект пыли как заглушка
+    ctx.fillStyle = 'rgba(200,200,200,0.6)'; ctx.fillRect(mush.x, mush.y, mush.w, mush.h);
+  } else drawPlaceholder(mush.x, mush.y, mush.w, mush.h, 'Mush', '#f85');
+}
+
+/* ------------- Обновление состояния ------------- */
+function update() {
+  // движение
+  if (keys['ArrowRight']) {
+    ken.x += ken.vx;
+    ken.action = 'walk';
+  } else if (keys['ArrowLeft']) {
+    ken.x -= ken.vx;
+    ken.action = 'walk';
+  } else {
+    if (ken.action !== 'punch') ken.action = 'idle';
+  }
+
+  // ограничение по экрану
+  ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
+
+  // удар
+  if (keys['Space']) {
+    // делаем удар моментальным — чтобы не было спам-проблем, можно снять true после обработки:
+    if (ken.action !== 'punch') {
+      ken.action = 'punch';
+      // проверка попадания в mush (только на странице 2)
+      if (page === 2 && mush.alive && isColliding(ken, mush)) {
+        mush.hp -= 1;
+        mush.action = 'punch';
+        if (mush.hp <= 0) {
+          mush.alive = false;
+          mush.action = 'death';
+          // спрятать через секунду
+          setTimeout(()=>{ mush.alive = false; }, 900);
+        } else {
+          // вернуть в idle через короткое время
+          setTimeout(()=>{ if(mush.alive) mush.action = 'idle'; }, 250);
+        }
+      }
+      // возврат к idle через 220мс
+      setTimeout(()=>{ if(ken.action === 'punch') ken.action = 'idle'; }, 220);
     }
+    // предотвращаем повторную срабатываемость, пока не отпустили пробел
+    keys['Space'] = false;
   }
 
-  if(e.key === "ArrowLeft"){
-    posX -= 5;
-    ken.style.left = posX + "px";
-    ken.style.transform = "scaleX(-1)";
+  // переход на страницу 2, если дошёл до правого края
+  if (page === 1 && ken.x >= canvas.width - ken.w - 10) {
+    page = 2;
+    // перенести Кена в начало сцены 2
+    ken.x = 40;
+    // сброс врага
+    mush.x = canvas.width - 250; mush.hp = 3; mush.alive = true; mush.action = 'idle';
+  }
+}
 
-    frameCounter++;
-    if(frameCounter >= 5){
-      frameCounter = 0;
-      frameIndex = (frameIndex + 1) % walkFrames.length;
-      ken.src = walkFrames[frameIndex];
-    }
+/* ------------- Рендер сцены ------------- */
+function render() {
+  // фон
+  const bg = (page === 1) ? images.back1 : images.back2;
+  if (bg) ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+  else {
+    ctx.fillStyle = page===1 ? '#446' : '#264';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
   }
 
-  if(e.key === " "){
-    ken.src = "punch.png";
-    setTimeout(() => ken.src = "idle.png", 200);
+  // текст страницы
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(8,8,120,26);
+  ctx.fillStyle = '#fff'; ctx.font = '16px monospace';
+  ctx.fillText('Уровень: ' + page, 12, 26);
+
+  // герои
+  drawKen();
+  if (page === 2) drawMush();
+
+  // если есть отсутствующие файлы — поместим подсказку
+  if (missing.length) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(10, canvas.height - 70, canvas.width - 20, 60);
+    ctx.fillStyle = '#ffdddd';
+    ctx.font = '14px monospace';
+    ctx.fillText('Внимание! Не найдены ресурсы: ' + missing.join(', '), 14, canvas.height - 42);
+    ctx.fillStyle = '#ddd';
+    ctx.fillText('Проверь имена файлов (регистр/пробелы) и что они в корне репозитория.', 14, canvas.height - 20);
   }
+}
+
+/* ------------- Игровой цикл ------------- */
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ------------- Старт: preload -> loop ------------- */
+preloadAll().then(() => {
+  overlay.style.display = 'none';
+  loop();
+}).catch(err => {
+  overlay.textContent = 'Ошибка: ' + err;
 });
 
-document.addEventListener('keyup', ()=>{ ken.classList.remove("moving"); });
 </script>
 </body>
-</html>
+</html> 
