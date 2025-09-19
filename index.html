@@ -98,12 +98,23 @@ function isColliding(a, b) {
 
 /* ------------- Отрисовка персонажа ------------- */
 function drawKen() {
-  const imgSet = (ken.action === 'walk') ? [images.walk1, images.walk2]
-                : (ken.action === 'punch') ? [images.punch]
-                : [images.idle, images.idle2];
-
-  ken.animTimer++;
-  if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+  let imgSet;
+  
+  if (ken.action === 'walk') {
+    imgSet = [images.walk1, images.walk2];
+    ken.animTimer++;
+    if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+  } 
+  else if (ken.action === 'punch') {
+    imgSet = [images.punch, images.punch, images.punch, images.idle]; // Добавляем несколько кадров удара
+    ken.animTimer++;
+    if (ken.animTimer > 5) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+  }
+  else {
+    imgSet = [images.idle, images.idle2];
+    ken.animTimer++;
+    if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+  }
 
   const img = imgSet[ken.frame];
   if (img) {
@@ -115,6 +126,13 @@ function drawKen() {
       ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
     }
     ctx.restore();
+  } else {
+    // Заглушка
+    ctx.fillStyle = ken.action === 'punch' ? '#ff0000' : '#3498db';
+    ctx.fillRect(ken.x, ken.y, ken.w, ken.h);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(ken.x, ken.y, ken.w, ken.h);
   }
 }
 
@@ -150,25 +168,34 @@ function update() {
   ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
 
   // Удар
-  if (keys['Space']) {
-    if (ken.action !== 'punch') {
-      ken.action = 'punch';
-      if (page === 2 && mush.alive && isColliding(ken, mush)) {
-        mush.hp -= 1;
-        mush.action = 'punch';
-        mush.hitTimer = 20; // Таймер для эффекта попадания
-        
-        if (mush.hp <= 0) {
-          mush.alive = false;
-          mush.action = 'death';
-        }
+if (keys['Space']) {
+  if (ken.action !== 'punch') {
+    ken.action = 'punch';
+    ken.frame = 0; // Сбрасываем кадр анимации
+    ken.animTimer = 0;
+    
+    if (page === 2 && mush.alive && isColliding(ken, mush)) {
+      mush.hp -= 1;
+      mush.action = 'punch';
+      mush.hitTimer = 20;
+      
+      if (mush.hp <= 0) {
+        mush.alive = false;
+        mush.action = 'death';
       }
-      setTimeout(() => { 
-        if (ken.action === 'punch') ken.action = 'idle'; 
-      }, 220);
     }
-    keys['Space'] = false;
+    
+    // Автоматически возвращаемся к idle после анимации удара
+    setTimeout(() => { 
+      if (ken.action === 'punch') {
+        ken.action = 'idle';
+        ken.frame = 0;
+        ken.animTimer = 0;
+      }
+    }, 500); // Увеличили время анимации удара
   }
+  keys['Space'] = false;
+}
 
   // Эффект попадания по врагу
   if (mush.hitTimer > 0) {
@@ -232,4 +259,5 @@ preloadAll().then(() => {
 </body>
 </html>
   
+
 
