@@ -1,3 +1,4 @@
+Лана, [20.09.2025 1:05]
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -21,6 +22,7 @@ let images = {}, SOUNDS = {}, missing = [];
 let page = 1;
 let showOops = false, showOops2 = false;
 let audioEnabled = false;
+let kittyMusic = null; // Для MP3 музыки
 
 const ken = { x:50, y:0, w:200, h:200, vx:6, action:'idle', animTimer:0, facing:'right' };
 const enemies = {
@@ -92,7 +94,10 @@ function drawEnemy(en){
 }
 
 function drawDeathPuffs(){
-if(page === 2 && !enemies.level2.alive && images.mushdeath){
+
+Лана, [20.09.2025 1:05]
+// рисуем прах только для текущего уровня
+  if(page === 2 && !enemies.level2.alive && images.mushdeath){
     ctx.drawImage(images.mushdeath, enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
   }
   if(page === 3){
@@ -169,6 +174,34 @@ function playSound(soundName) {
   }
 }
 
+// Функция для проигрывания MP3 музыки
+function playKittyMusic() {
+  if (!audioEnabled || !kittyMusic) return;
+  
+  try {
+    kittyMusic.currentTime = 0; // Перематываем в начало
+    kittyMusic.volume = 0.7; // Устанавливаем громкость
+    kittyMusic.loop = true; // Зацикливаем музыку
+    const playPromise = kittyMusic.play();
+    
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        console.log('Music play failed:', error);
+      });
+    }
+  } catch (e) {
+    console.log('Music error:', e);
+  }
+}
+
+// Функция для остановки музыки
+function stopKittyMusic() {
+  if (kittyMusic) {
+    kittyMusic.pause();
+    kittyMusic.currentTime = 0;
+  }
+}
+
 function loadImage(key, src){
   return new Promise(res=>{
     const img = new Image();
@@ -183,6 +216,10 @@ async function preloadAll(){
   missing = [];
   images = {};
   
+  // Загружаем MP3 музыку
+  kittyMusic = new Audio('kitty.mp3');
+  kittyMusic.preload = 'auto';
+  
   const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
   await Promise.all(imagePromises);
   
@@ -193,6 +230,7 @@ async function preloadAll(){
   }
 }
 
+Лана, [20.09.2025 1:05]
 // ВКЛЮЧЕНИЕ ЗВУКА ПО КЛИКУ
 function enableAudio() {
   if (audioEnabled) return;
@@ -225,6 +263,7 @@ window.addEventListener('keyup', (e)=>{
   if(e.code === 'Space') keys['Space'] = false;
   if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = false;
 });
+
 function attackHitbox(){
   const range = 90;
   const verticalInset = 30;
@@ -291,6 +330,7 @@ oopsBtn.addEventListener('click', ()=>{
   showOops2 = true;
   oopsBtn.style.display = 'none';
   playSound('kitty');
+  playKittyMusic(); // Запускаем MP3 музыку при показе oops2
 });
 
 /* ---------- игровой цикл ---------- */
@@ -310,6 +350,11 @@ function update(){
   if(page===1 && ken.x >= canvas.width - ken.w - 10){ page = 2; ken.x = 40; }
   else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page = 3; ken.x = 40; }
   else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page = 4; ken.x = 40; }
+
+  // Если выходим из oops2, останавливаем музыку
+  if(!showOops2) {
+    stopKittyMusic();
+  }
 }
 
 function render(){
@@ -325,7 +370,8 @@ function render(){
 
   drawKen();
 
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
+Лана, [20.09.2025 1:05]
+ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
   ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: ' + page, 14, 30);
 
   if(page===4 && !showOops && !showOops2 && nearGirl()){
@@ -349,8 +395,9 @@ function render(){
     }
     else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops2');
   }
-}  
-  function loop(){
+}
+
+function loop(){
   try{
     update(); render();
     requestAnimationFrame(loop);
@@ -381,4 +428,3 @@ window.addEventListener('error', (e) => {
 </script>
 </body>
 </html>
-  // рисуем прах только для текущего уровня
