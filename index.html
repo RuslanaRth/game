@@ -2,42 +2,25 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8"/>
-<title>Ken — Battle Game</title>
+<title>Ken — test levels</title>
 <style>
-  html,body {height:100%; margin:0; background:#000; overflow:hidden;}
+  html,body {height:100%; margin:0; background:#000;}
   #gameCanvas {display:block; margin:0 auto; background:#222;}
-  #overlay {
-    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); 
-    color:#fff; font-family: 'Arial', sans-serif; background:rgba(0,0,0,0.8); 
-    padding:20px; border-radius:10px; text-align:center; border:2px solid #ffcc00;
-  }
-  #loadingBar {width:300px; height:20px; background:#333; margin:15px auto; border-radius:10px;}
-  #progressBar {width:0%; height:100%; background:#ffcc00; border-radius:10px; transition:width 0.3s;}
-  #errors {
-    position:fixed; right:10px; top:10px; color:#fff; font-family:monospace; 
-    background:rgba(128,0,0,0.8); padding:10px; border-radius:6px; display:none;
-  }
+  #overlay {position:fixed; left:10px; top:10px; color:#fff; font-family: monospace; background:rgba(0,0,0,0.6); padding:6px; border-radius:6px;}
+  #status {position:fixed; right:10px; top:10px; color:#fff; font-family:monospace; background:rgba(0,100,0,0.6); padding:6px; border-radius:6px;}
 </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="900" height="500"></canvas>
-<div id="overlay">
-  <h2>Ken Battle Game</h2>
-  <div id="loadingBar"><div id="progressBar"></div></div>
-  <div id="status">Загрузка ресурсов...</div>
-</div>
-<div id="errors"></div>
+<div id="overlay">Загрузка ресурсов...</div>
+<div id="status">Проверка...</div>
 
 <script>
-/* ------------- Глобальные переменные ------------- */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
-const statusText = document.getElementById('status');
-const progressBar = document.getElementById('progressBar');
-const errorsBox = document.getElementById('errors');
+const statusBox = document.getElementById('status');
 
-/* ------------- Ресурсы игры ------------- */
 const IMAGES = {
   back1: 'back1.jpg',
   back2: 'back2.jpg',
@@ -52,335 +35,67 @@ const IMAGES = {
   mushdeath: 'mushdeath.png'
 };
 
-const SOUNDS = {
-  punch: 'punch.wav',
-  hit: 'hit.wav',
-  death: 'death.wav',
-  victory: 'victory.wav'
-};
-
 let images = {};
-let sounds = {};
-let missingResources = [];
+let loadedCount = 0;
+let totalCount = Object.keys(IMAGES).length;
 
-/* ------------- Система загрузки ------------- */
-async function loadResource(type, key, src) {
-  return new Promise((resolve) => {
-    if (type === 'image') {
-      const img = new Image();
-      img.onload = () => {
-        images[key] = img;
-        updateProgress();
-        resolve(true);
-      };
-      img.onerror = () => {
-        missingResources.push(src);
-        images[key] = null;
-        resolve(false);
-      };
-      img.src = src;
-    } else if (type === 'sound') {
-      const audio = new Audio();
-      audio.preload = 'auto';
-      audio.oncanplaythrough = () => {
-        sounds[key] = audio;
-        updateProgress();
-        resolve(true);
-      };
-      audio.onerror = () => {
-        missingResources.push(src);
-        sounds[key] = null;
-        resolve(false);
-      };
-      audio.src = src;
-    }
+function loadImage(key, src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { 
+      images[key] = img;
+      loadedCount++;
+      updateStatus();
+      resolve();
+    };
+    img.onerror = () => {
+      images[key] = null;
+      loadedCount++;
+      statusBox.style.background = 'rgba(128,0,0,0.6)';
+      statusBox.innerHTML = ОШИБКА!<br>Не найден: ${src};
+      resolve();
+    };
+    img.src = src;
   });
 }
 
-let loadedCount = 0;
-const totalResources = Object.keys(IMAGES).length + Object.keys(SOUNDS).length;
-
-function updateProgress() {
-  loadedCount++;
-  const percent = (loadedCount / totalResources) * 100;
-  progressBar.style.width = percent + '%';
-  statusText.textContent = Загрузка: ${Math.round(percent)}%;
+function updateStatus() {
+  statusBox.innerHTML = Загружено:<br>${loadedCount}/${totalCount};
+  if (loadedCount === totalCount) {
+    statusBox.style.background = 'rgba(0,100,0,0.6)';
+    overlay.textContent = 'ВСЕ ФАЙЛЫ ЗАГРУЖЕНЫ!';
+  }
 }
 
-async function loadAllResources() {
-  const promises = [];
-  
-  // Загрузка изображений
-  for (const [key, src] of Object.entries(IMAGES)) {
-    promises.push(loadResource('image', key, src));
-  }
-  
-  // Загрузка звуков
-  for (const [key, src] of Object.entries(SOUNDS)) {
-    promises.push(loadResource('sound', key, src));
-  }
-  
+async function preloadAll() {
+  overlay.textContent = 'Загружаю ресурсы...';
+  const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
   await Promise.all(promises);
-  
-  if (missingResources.length > 0) {
-    errorsBox.style.display = 'block';
-    errorsBox.innerHTML = 'Отсутствуют ресурсы:<br>' + missingResources.join('<br>');
-  }
+  overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар';
 }
 
-/* ------------- Игровые объекты ------------- */
-const ken = {
-  x: 50, y: canvas.height - 140, w: 128, h: 128,
-  vx: 5, facing: 'right',
-  action: 'idle', frame: 0, animTimer: 0,
-  canPunch: true,
-  draw() {
-    let imgSet;
-    switch (this.action) {
-      case 'walk': imgSet = [images.walk1, images.walk2]; break;
-      case 'punch': imgSet = [images.punch]; break;
-      default: imgSet = [images.idle, images.idle2];
-    }
-
-    this.animTimer++;
-    if (this.animTimer > 8) {
-      this.animTimer = 0;
-      this.frame = (this.frame + 1) % imgSet.length;
-    }
-
-    const img = imgSet[this.frame];
-    ctx.save();
-    if (this.facing === 'left') {
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, -this.x - this.w, this.y, this.w, this.h);
-    } else {
-      ctx.drawImage(img, this.x, this.y, this.w, this.h);
-    }
-    ctx.restore();
-  },
-  update() {
-    // Движение
-    if (keys['ArrowRight']) {
-      this.x += this.vx;
-      this.action = 'walk';
-      this.facing = 'right';
-    } else if (keys['ArrowLeft']) {
-      this.x -= this.vx;
-      this.action = 'walk';
-      this.facing = 'left';
-    } else if (this.action !== 'punch') {
-      this.action = 'idle';
-    }
-
-    // Границы экрана
-    this.x = Math.max(0, Math.min(canvas.width - this.w, this.x));
-
-    // Удар
-    if (keys['Space'] && this.canPunch && this.action !== 'punch') {
-      this.action = 'punch';
-      this.canPunch = false;
-      playSound('punch');
-      
-      // Проверка попадания
-      if (page === 2 && mush.alive && isColliding(this, mush)) {
-        mush.takeHit();
-      }
-      
-      // Возврат к обычному состоянию
-      setTimeout(() => {
-        this.action = 'idle';
-        this.canPunch = true;
-      }, 300);
-    }
-  }
-};
-
-const mush = {
-  x: 700, y: canvas.height - 140, w: 128, h: 128,
-  hp: 3, alive: true,
-  action: 'idle', frame: 0, animTimer: 0,
-  draw() {
-    if (!this.alive) return;
-    
-    let imgSet;
-    switch (this.action) {
-      case 'punch': imgSet = [images.mushpunch]; break;
-      case 'hit': imgSet = [images.mushpunch]; break;
-      case 'death': imgSet = [images.mushdeath]; break;
-      default: imgSet = [images.mushidle1, images.mushidle2];
-    }
-
-    this.animTimer++;
-    if (this.animTimer > 10) {
-      this.animTimer = 0;
-      this.frame = (this.frame + 1) % imgSet.length;
-    }
-
-    const img = imgSet[this.frame];
-    if (img) {
-      ctx.drawImage(img, this.x, this.y, this.w, this.h);
-    }
-  },
-  takeHit() {
-    this.hp--;
-    this.action = 'hit';
-    playSound('hit');
-    
-    if (this.hp <= 0) {
-      this.die();
-    } else {
-      setTimeout(() => {
-        if (this.alive) this.action = 'idle';
-      }, 300);
-    }
-  },
-  die() {
-    this.alive = false;
-    this.action = 'death';
-    playSound('death');
-    setTimeout(() => playSound('victory'), 500);
-  }
-};
-
-/* ------------- Игровые состояния ------------- */
-let page = 1;
-let gameState = 'playing';
-const keys = {};
-
-/* ------------- Вспомогательные функции ------------- */
-function isColliding(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function playSound(name) {
-  if (sounds[name]) {
-    const sound = sounds[name].cloneNode();
-    sound.volume = 0.7;
-    sound.play();
-  }
-}
-
-function drawPlaceholder(x, y, w, h, label, color = '#cc5') {
-  ctx.fillStyle = '#333';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
-  ctx.fillStyle = '#fff';
-  ctx.font = '12px Arial';
-  ctx.fillText(label, x + 6, y + Math.min(20, h - 8));
-}
-
-/* ------------- Управление ------------- */
-window.addEventListener('keydown', e => {
-  if (e.code === 'Space') e.preventDefault();
-  keys[e.code] = true;
-});
-
-window.addEventListener('keyup', e => {
-  keys[e.code] = false;
-});
-
-/* ------------- Рендеринг ------------- */
-function render() {
-  // Фон
-  const bg = page === 1 ? images.back1 : images.back2;
-  if (bg) {
-    ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-  } else {
-    ctx.fillStyle = page === 1 ? '#446' : '#264';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-  // UI
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(10, 10, 150, 40);
-  ctx.fillStyle = '#ffcc00';
-  ctx.font = '16px Arial';
-  ctx.fillText('Уровень: ' + page, 20, 30);
-  
-  if (page === 2 && mush.alive) {
-    ctx.fillText('HP: ' + mush.hp, 20, 50);
-  }
-
-  // Персонажи
-  ken.draw();
-  if (page === 2) mush.draw();
-
-  // Сообщения
-  if (page === 2 && !mush.alive) {
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
-    ctx.fillRect(canvas.width/2 - 150, canvas.height/2 - 40, 300, 80);
-    ctx.fillStyle = '#ffcc00';
-    ctx.font = '24px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('ПОБЕДА!', canvas.width/2, canvas.height/2);
-    ctx.font = '16px Arial';
-    ctx.fillText('Нажми R для рестарта', canvas.width/2, canvas.height/2 + 30);
-    ctx.textAlign = 'left';
-  }
-
-  // Ошибки загрузки
-  if (missingResources.length > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(10, canvas.height - 80, canvas.width - 20, 70);
-    ctx.fillStyle = '#ff6b6b';
-    ctx.font = '14px Arial';
-    ctx.fillText('Отсутствуют ресурсы: ' + missingResources.join(', '), 20, canvas.height - 50);
-  }
-}
-
-/* ------------- Игровая логика ------------- */
-function update() {
-  ken.update();
-  
-  // Переход на уровень 2
-  if (page === 1 && ken.x >= canvas.width - ken.w - 10) {
-    page = 2;
-    ken.x = 50;
-  }
-  
-  // Рестарт игры
-  if (keys['KeyR'] && !mush.alive) {
-    mush.hp = 3;
-    mush.alive = true;
-    mush.action = 'idle';
-    page = 1;
-    ken.x = 50;
-    keys['KeyR'] = false;
-  }
-}
-
-/* ------------- Игровой цикл ------------- */
+// Простая отрисовка для теста
 function gameLoop() {
-  update();
-  render();
+  ctx.fillStyle = '#224466';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '16px Arial';
+  ctx.fillText(Загружено изображений: ${loadedCount}/${totalCount}, 20, 40);
+  
+  if (loadedCount === totalCount) {
+    ctx.fillStyle = '#00ff00';
+    ctx.fillText('ВСЕ ФАЙЛЫ ЗАГРУЖЕНЫ!', 20, 70);
+    ctx.fillStyle = '#ffff00';
+    ctx.fillText('Двигайтесь стрелками →', 20, 100);
+  }
+  
   requestAnimationFrame(gameLoop);
 }
 
-/* ------------- Запуск игры ------------- */
-async function initGame() {
-  await loadAllResources();
-  
-  overlay.innerHTML = 
-    <h2>Ken Battle Game</h2>
-    <p>← → Движение</p>
-    <p>SPACE Удар</p>
-    <p>R Рестарт</p>
-    <p>Дойди до правого края для перехода на уровень 2!</p>
-    <button onclick="startGame()" style="padding:10px 20px; background:#ffcc00; border:none; border-radius:5px; cursor:pointer; font-size:16px;">
-      НАЧАТЬ ИГРУ
-    </button>
-  ;
-}
-
-function startGame() {
-  overlay.style.display = 'none';
-  gameLoop();
-}
-
-// Запуск игры
-initGame();
+// Запускаем
+preloadAll();
+gameLoop();
 </script>
 </body>
 </html>
-  
