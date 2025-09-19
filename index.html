@@ -123,6 +123,7 @@ function setupMobileControls() {
     btn.addEventListener('touchstart', press);
     btn.addEventListener('touchend', release);
     btn.addEventListener('touchcancel', release);
+Лана, [20.09.2025 1:56]
 };
   
   handlePress(leftBtn, 'ArrowLeft');
@@ -148,7 +149,9 @@ window.addEventListener('resize', resize);
 resize();
 
 function placeEntities(){
-  const ground = canvas.height - ken.h - 20;
+  // Для телефона делаем ниже, для компьютера - как было
+  const ground = canvas.height - ken.h - (isMobile ? 10 : 20);
+  
   ken.y = ground;
   enemies.level2.x = Math.max(300, canvas.width - 400); enemies.level2.y = ground;
   enemies.level3[0].x = Math.max(200, canvas.width - 800); enemies.level3[0].y = ground;
@@ -156,8 +159,8 @@ function placeEntities(){
   girl.x = canvas.width - 280; girl.y = ground;
 }
 
-function isColliding(a, b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a,b){
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 function drawPlaceholder(x,y,w,h,label){
@@ -226,12 +229,11 @@ function createSound(frequency, duration, type = 'sine') {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
-    
-    oscillator.type = type;
+
+oscillator.type = type;
     oscillator.frequency.value = frequency;
     gainNode.gain.setValueAtTime(0.7, audioContext.currentTime);
-
-gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
     
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
@@ -257,13 +259,34 @@ function playSound(soundName) {
 }
 
 function playKittyMusic() {
-  if (!audioEnabled || !kittyMusic) return;
+  if (!audioEnabled) return;
   
   try {
-    kittyMusic.currentTime = 0;
+    // Пересоздаем аудио каждый раз для телефона
+    if (kittyMusic) {
+      kittyMusic.pause();
+      kittyMusic = null;
+    }
+    
+    kittyMusic = new Audio('kitty.mp3');
     kittyMusic.volume = 0.7;
     kittyMusic.loop = true;
-    kittyMusic.play().catch(() => {});
+    
+    // Важное для телефона!
+    kittyMusic.setAttribute('preload', 'auto');
+    kittyMusic.setAttribute('playsinline', 'true');
+    
+    const playPromise = kittyMusic.play();
+    
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        console.log('Music play failed, trying again:', error);
+        // Пробуем еще раз через секунду
+        setTimeout(() => {
+          kittyMusic.play().catch(e => console.log('Second try failed:', e));
+        }, 1000);
+      });
+    }
   } catch (e) {
     console.log('Music error:', e);
   }
@@ -307,6 +330,18 @@ function enableAudio() {
   if (audioEnabled) return;
   audioEnabled = true;
   overlay.style.display = 'none';
+  
+  // Особенно для телефонов
+  if (isMobile) {
+    // Создаем и сразу останавливаем аудио для разблокировки
+    const unlockSound = new Audio();
+    unlockSound.volume = 0;
+    unlockSound.play().then(() => {
+      unlockSound.pause();
+      unlockSound.remove();
+    }).catch(() => {});
+  }
+  
   playSound('hit');
 }
 
@@ -492,4 +527,4 @@ window.addEventListener('error', (e) => {
 });
 </script>
 </body>
-</html>
+</html>    
