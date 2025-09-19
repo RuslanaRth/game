@@ -22,7 +22,7 @@ window.addEventListener('error', (e)=> {
   const ov = document.getElementById('overlay');
   ov.style.display='block';
   ov.style.background='rgba(128,0,0,0.9)';
-  ov.textContent = 'Error: ${e.message} (line ${e.lineno})';
+  ov.textContent = 'Error: ' + e.message + ' (line ' + e.lineno + ')';
   console.error(e.error || e.message);
 });
 
@@ -115,7 +115,6 @@ function playAudioSafe(soundName){
 /* ================= entities & placement ================= */
 let page = 1; // 1..4
 let showOops=false, showOops2=false;
-let ken = { x:50, y:0, w:150, h:170, vx:6, action:'idle', frame:0, animTimer:0, facing:'right' };
   const enemies = {
   level2: { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
   level3: [
@@ -233,7 +232,7 @@ function drawKen(){
   const idleSet = [images.idle, images.idle2].filter(Boolean);
   const walkSet = [images.walk1, images.walk2].filter(Boolean);
   const punchImg = images.punch || null;
-let img = null;
+  let img = null;
   if(ken.action === 'walk' && walkSet.length) img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
   else if(ken.action === 'punch' && punchImg) img = punchImg;
   else if(idleSet.length) img = idleSet[Math.floor(ken.animTimer/20) % idleSet.length];
@@ -342,7 +341,7 @@ function render(){
     ctx.fillStyle='yellow'; ctx.font='20px monospace';
     ctx.fillText('Подойди и нажми Space', canvas.width - 360, canvas.height - 340);
   }
-  // show oops popups
+ // show oops popups
   if(showOops){
     if(images.oops) ctx.drawImage(images.oops, canvas.width/2 - 200, canvas.height/2 - 150, 400, 300);
     else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops');
@@ -391,5 +390,5 @@ preloadAll().then(()=>{
 
 </script>
 </body>
-</html>
-
+</html> 
+let ken = { x:50, y:0, w:150, h:170, vx:6, action:'idle', frame:0, animTimer:0, facing:'right' };
