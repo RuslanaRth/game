@@ -228,10 +228,11 @@ function drawDeathPuffs(){
 }
 
 function drawKen(){
-  // pick sprite set safely
-  const idleSet = [images.idle, images.idle2].filter(Boolean);
+  // Исправлено: idle2 -> idle1
+  const idleSet = [images.idle, images.idle1].filter(Boolean);
   const walkSet = [images.walk1, images.walk2].filter(Boolean);
   const punchImg = images.punch || null;
+
   let img = null;
   if(ken.action === 'walk' && walkSet.length) img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
   else if(ken.action === 'punch' && punchImg) img = punchImg;
@@ -392,3 +393,4 @@ preloadAll().then(()=>{
 </body>
 </html> 
 let ken = { x:50, y:0, w:150, h:170, vx:6, action:'idle', frame:0, animTimer:0, facing:'right' };
+
