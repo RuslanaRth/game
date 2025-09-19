@@ -71,7 +71,7 @@ function drawPlaceholder(x,y,w,h,label){
   ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
 }
 
-// ================= ФУНКЦИИ ОТРИСОВКИ (ИСПОЛЬЗУЮТ ken) =================
+// ================= ФУНКЦИИ ОТРИСОВКИ =================
 function drawKen(){
   const idleSet = [images.idle, images.idle1].filter(Boolean);
   const walkSet = [images.walk1, images.walk2].filter(Boolean);
@@ -118,7 +118,6 @@ function drawEnemy(en){
   const set = (en.action === 'punch') ? [images.mushpunch].filter(Boolean) : [images.mushidle1, images.mushidle2].filter(Boolean);
   if(set.length === 0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
   const img = set[Math.floor(en.animTimer/12) % set.length];
-  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
   function drawGirl(){
   const frames = [images.girl1, images.girl2, images.girl3].filter(Boolean);
   if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
@@ -126,7 +125,7 @@ function drawEnemy(en){
   ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
 }
 
-// ================= ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ =================
+// ================= ИНИЦИАЛИЗАЦИЯ =================
 window.addEventListener('error', (e)=> {
   const ov = document.getElementById('overlay');
   ov.style.display='block';
@@ -207,6 +206,7 @@ function playAudioSafe(soundName){
   }catch(e){}
 }
 
+// ================= УПРАВЛЕНИЕ =================
 const keys = {};
 window.addEventListener('keydown', (e)=>{
   if(e.code === 'Space'){
@@ -259,7 +259,8 @@ function handleAttackOrInteract(){
     return;
   }
 }
-  function startConfetti(){
+  // ================= КОНФЕТТИ =================
+function startConfetti(){
   confetti = Array.from({length:120}, ()=>({
     x: Math.random()*canvas.width,
     y: -Math.random()*canvas.height,
@@ -281,6 +282,7 @@ function updateAndDrawConfetti(){
   });
 }
 
+// ================= ОБНОВЛЕНИЕ И ОТРИСОВКА =================
 function update(){
   if(!showOops && !showOops2){
     if(keys['ArrowRight']) { ken.x += ken.vx; ken.action='walk'; ken.facing='right'; }
@@ -333,6 +335,7 @@ function render(){
   }
 }
 
+// ================= ОБРАБОТЧИК КНОПКИ =================
 oopsBtn.addEventListener('click', ()=>{
   showOops = false;
   showOops2 = true;
@@ -341,6 +344,7 @@ oopsBtn.addEventListener('click', ()=>{
   startConfetti();
 });
 
+// ================= ИГРОВОЙ ЦИКЛ =================
 function loop(){
   try{
     update();
@@ -354,6 +358,7 @@ function loop(){
   }
 }
 
+// ================= ЗАПУСК =================
 preloadAll().then(()=>{
   overlay.style.display='none';
   placeEntities();
@@ -366,4 +371,6 @@ preloadAll().then(()=>{
 });
 </script>
 </body>
-</html> 
+</html>
+  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
+}
