@@ -3,27 +3,143 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ken — сюжет (fixed)</title>
+<meta name="theme-color" content="#000000"/>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Ken Game">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Ken — сюжет (Mobile)</title>
 <style>
-  html,body{height:100%;margin:0;background:#000;font-family:monospace;}
+  html,body{height:100%;margin:0;background:#000;font-family:monospace;touch-action:none;}
   canvas{display:block;width:100vw;height:100vh;}
   #overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
   #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
+  
+  /* МОБИЛЬНЫЕ КНОПКИ */
+  #mobileControls {
+    position: fixed;
+    bottom: 20px;
+    width: 100%;
+    display: none;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 1000;
+  }
+  
+  .control-group {
+    display: flex;
+    gap: 15px;
+  }
+  
+  .control-btn {
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.3);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+    user-select: none;
+    touch-action: none;
+  }
+  
+  .control-btn:active {
+    background: rgba(255,255,255,0.5);
+  }
+  
+  #attackBtn {
+    background: rgba(255,50,50,0.6);
+    width: 70px;
+    height: 70px;
+  }
+  
+  #attackBtn:active {
+    background: rgba(255,50,50,0.8);
+  }
+  
+  /* ИНСТРУКЦИЯ ДЛЯ УСТАНОВКИ */
+  #installPrompt {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0,100,0,0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    display: none;
+    z-index: 10000;
+  }
 </style>
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
-<div id="overlay">Загрузка ресурсов... (кликни по экрану чтобы включить звук)</div>
+<div id="overlay">Загрузка... (Коснись экрана для звука)</div>
 <button id="oopsBtn">Oops!</button>
+
+<!-- МОБИЛЬНОЕ УПРАВЛЕНИЕ -->
+<div id="mobileControls">
+  <div class="control-group">
+    <div class="control-btn" id="leftBtn">←</div>
+    <div class="control-btn" id="rightBtn">→</div>
+  </div>
+  <div class="control-group">
+    <div class="control-btn" id="attackBtn">⚡</div>
+  </div>
+</div>
+
+<!-- ПОДСКАЗКА ДЛЯ УСТАНОВКИ -->
+<div id="installPrompt">📲 Нажми "⋮" → "Установить приложение"</div>
+
 <script>
-/* ---------- данные и стейт ---------- */
+// ===== PWA MANIFEST =====
+const manifest = {
+  "name": "Ken Game",
+  "short_name": "Ken",
+  "description": "Увлекательная игра про Кена",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+};
+
+// Создаем manifest динамически
+const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+const manifestURL = URL.createObjectURL(manifestBlob);
+document.querySelector('link[rel="manifest"]').href = manifestURL;
+
+// ===== ПЕРЕМЕННЫЕ ДЛЯ МОБИЛЬНОГО УПРАВЛЕНИЯ =====
+let touchId = null;
+let touchStartX = 0;
+let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+// ===== ОСТАЛЬНОЙ КОД ОСТАЕТСЯ ПРЕЖНИМ =====
 let images = {}, SOUNDS = {}, missing = [];
 let page = 1;
 let showOops = false, showOops2 = false;
 let audioEnabled = false;
-let kittyMusic = null; // Для MP3 музыки
+let kittyMusic = null;
 
 const ken = { x:50, y:0, w:200, h:200, vx:6, action:'idle', animTimer:0, facing:'right' };
+
 const enemies = {
   level2: { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
   level3: [
@@ -33,16 +149,112 @@ const enemies = {
 };
 const girl = { x:0, y:0, w:220, h:200 };
 
-/* ---------- canvas ---------- */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
 const oopsBtn = document.getElementById('oopsBtn');
+const mobileControls = document.getElementById('mobileControls');
+const installPrompt = document.getElementById('installPrompt');
 
+// ===== МОБИЛЬНОЕ УПРАВЛЕНИЕ =====
+function setupMobileControls() {
+  if (!isMobile) return;
+  
+  mobileControls.style.display = 'flex';
+  
+  // Кнопки движения
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+  const attackBtn = document.getElementById('attackBtn');
+  
+  const handlePress = (btn, key) => {
+    const press = () => keys[key] = true;
+    const release = () => keys[key] = false;
+    
+    btn.addEventListener('touchstart', press);
+    btn.addEventListener('touchend', release);
+    btn.addEventListener('touchcancel', release);
+  };
+  
+  handlePress(leftBtn, 'ArrowLeft');
+  handlePress(rightBtn, 'ArrowRight');
+  
+  // Кнопка атаки
+  attackBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    keys['Space'] = true;
+    handleAction();
+  });
+  
+  attackBtn.addEventListener('touchend', () => {
+    keys['Space'] = false;
+  });
+  
+  // Свайпы по экрану
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (touchId === null) {
+      touchId = e.touches[0].identifier;
+      touchStartX = e.touches[0].clientX;
+    }
+  });
+  
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!touchId) return;
+    
+    const touch = Array.from(e.touches).find(t => t.identifier === touchId);
+    if (!touch) return;
+    
+    const diffX = touch.clientX - touchStartX;
+    if (Math.abs(diffX) > 10) {
+      keys['ArrowLeft'] = diffX < 0;
+      keys['ArrowRight'] = diffX > 0;
+      touchStartX = touch.clientX;
+    }
+  });
+  
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (Array.from(e.changedTouches).some(t => t.identifier === touchId)) {
+      touchId = null;
+      keys['ArrowLeft'] = false;
+      keys['ArrowRight'] = false;
+    }
+  });
+}
+
+// ===== PWA УСТАНОВКА =====
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installPrompt.style.display = 'block';
+  
+  setTimeout(() => {
+    installPrompt.style.display = 'none';
+  }, 5000);
+});
+
+// Автоматическая подсказка об установке
+if (isMobile && window.matchMedia('(display-mode: browser)').matches) {
+  setTimeout(() => {
+    installPrompt.style.display = 'block';
+  }, 10000);
+}
+
+// ===== ОСТАЛЬНОЙ КОД (аналогичный предыдущему) =====
 function resize(){
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   placeEntities();
+  
+  // На мобильных включаем альбомную ориентацию
+  if (isMobile && window.innerHeight > window.innerWidth) {
+    overlay.innerHTML = '📱 Поверни телефон горизонтально!';
+    overlay.style.background = 'rgba(200,100,0,0.9)';
+  }
 }
 window.addEventListener('resize', resize);
 resize();
@@ -56,8 +268,8 @@ function placeEntities(){
   girl.x = canvas.width - 280; girl.y = ground;
 }
 
-function isColliding(a, b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a,b){
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 function drawPlaceholder(x,y,w,h,label){
@@ -66,7 +278,6 @@ function drawPlaceholder(x,y,w,h,label){
   ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
 }
 
-/* ---------- отрисовка персонажей / врагов / праха ---------- */
 function drawKen(){
   const idleSet = [images.idle, images.idle1].filter(Boolean);
   const walkSet = [images.walk1, images.walk2].filter(Boolean);
@@ -93,8 +304,6 @@ function drawEnemy(en){
 }
 
 function drawDeathPuffs(){
-
-// рисуем прах только для текущего уровня
   if(page === 2 && !enemies.level2.alive && images.mushdeath){
     ctx.drawImage(images.mushdeath, enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
   }
@@ -114,7 +323,6 @@ function drawGirl(){
   ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
 }
 
-/* ---------- загрузка ресурсов ---------- */
 const IMAGES = {
   back1:'back1.jpg', back2:'back2.jpg', back3:'back3.jpg', back4:'back4.jpg',
   idle:'idle.png', idle1:'idle1.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
@@ -123,7 +331,6 @@ const IMAGES = {
   oops:'oops.jpg', oops2:'oops2.jpg'
 };
 
-// ПРОСТЫЕ ВСТРОЕННЫЕ ЗВУКИ ЧЕРЕЗ Web Audio API
 function createSound(frequency, duration, type = 'sine') {
   if (!audioEnabled) return;
   
@@ -152,34 +359,34 @@ function playSound(soundName) {
   
   switch(soundName) {
     case 'punch':
-      createSound(150, 0.1, 'square'); // Низкий звук удара
+      createSound(150, 0.1, 'square');
       break;
     case 'hit':
-      createSound(300, 0.2, 'sawtooth'); // Звук попадания
+      createSound(300, 0.2, 'sawtooth');
       break;
     case 'death':
-      createSound(200, 0.5, 'sine'); // Длинный звук смерти
+      createSound(200, 0.5, 'sine');
       break;
     case 'fail':
-      createSound(100, 0.3, 'square'); // Звук неудачи
+      createSound(100, 0.3, 'square');
       break;
     case 'kitty':
-      createSound(400, 0.8, 'sine'); // Победный звук
+      createSound(400, 0.8, 'sine');
       break;
     case 'whiff':
-      createSound(80, 0.15, 'triangle'); // Промах
+      createSound(80, 0.15, 'triangle');
       break;
   }
 }
 
-// Функция для проигрывания MP3 музыки
 function playKittyMusic() {
   if (!audioEnabled || !kittyMusic) return;
   
   try {
-    kittyMusic.currentTime = 0; // Перематываем в начало
-    kittyMusic.volume = 0.7; // Устанавливаем громкость
-    kittyMusic.loop = true; // Зацикливаем музыку
+    kittyMusic.currentTime = 0;
+
+kittyMusic.volume = 0.7;
+    kittyMusic.loop = true;
     const playPromise = kittyMusic.play();
     
     if (playPromise !== undefined) {
@@ -192,7 +399,6 @@ function playKittyMusic() {
   }
 }
 
-// Функция для остановки музыки
 function stopKittyMusic() {
   if (kittyMusic) {
     kittyMusic.pause();
@@ -214,7 +420,6 @@ async function preloadAll(){
   missing = [];
   images = {};
   
-  // Загружаем MP3 музыку
   kittyMusic = new Audio('kitty.mp3');
   kittyMusic.preload = 'auto';
   
@@ -224,24 +429,20 @@ async function preloadAll(){
   if(missing.length) {
     overlay.textContent = 'Не загружены: ' + missing.join(', ');
   } else {
-    overlay.textContent = 'Кликни по экрану чтобы включить звук';
+    overlay.textContent = 'Коснись экрана для звука';
   }
 }
 
-// ВКЛЮЧЕНИЕ ЗВУКА ПО КЛИКУ
 function enableAudio() {
   if (audioEnabled) return;
   audioEnabled = true;
   overlay.style.display = 'none';
-  
-  // Тестовый звук для проверки
   playSound('hit');
 }
 
 canvas.addEventListener('click', enableAudio, { once: true });
 window.addEventListener('keydown', enableAudio, { once: true });
 
-/* ---------- ввод / управление ---------- */
 const keys = {};
 let lastPunchTime = 0;
 const punchCooldown = 180;
@@ -321,16 +522,14 @@ function handleAction(){
   setTimeout(()=>{ if(ken.action === 'punch') ken.action = 'idle'; }, 260);
 }
 
-/* ---------- кнопка oops ---------- */
 oopsBtn.addEventListener('click', ()=>{
   showOops = false;
   showOops2 = true;
   oopsBtn.style.display = 'none';
   playSound('kitty');
-  playKittyMusic(); // Запускаем MP3 музыку при показе oops2
+  playKittyMusic();
 });
 
-/* ---------- игровой цикл ---------- */
 function update(){
   if(!showOops && !showOops2){
     if(keys['ArrowRight']){ ken.x += ken.vx; ken.action = 'walk'; ken.facing = 'right'; }
@@ -344,11 +543,10 @@ function update(){
   if(enemies.level2.hitTimer > 0){ enemies.level2.hitTimer--; if(enemies.level2.hitTimer === 0) enemies.level2.action = 'idle'; }
   enemies.level3.forEach(en => { if(en.hitTimer > 0){ en.hitTimer--; if(en.hitTimer === 0) en.action = 'idle'; } });
 
-  if(page===1 && ken.x >= canvas.width - ken.w - 10){ page = 2; ken.x = 40; }
+if(page===1 && ken.x >= canvas.width - ken.w - 10){ page = 2; ken.x = 40; }
   else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page = 3; ken.x = 40; }
   else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page = 4; ken.x = 40; }
 
-  // Если выходим из oops2, останавливаем музыку
   if(!showOops2) {
     stopKittyMusic();
   }
@@ -367,7 +565,7 @@ function render(){
 
   drawKen();
 
-ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
   ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: ' + page, 14, 30);
 
   if(page===4 && !showOops && !showOops2 && nearGirl()){
@@ -405,9 +603,10 @@ function loop(){
   }
 }
 
-/* ---------- старт ---------- */
+// ===== ЗАПУСК =====
 preloadAll().then(()=>{
   placeEntities();
+  setupMobileControls(); // Инициализируем мобильное управление
   loop();
 }).catch(e=>{
   overlay.style.display='block';
@@ -424,5 +623,3 @@ window.addEventListener('error', (e) => {
 </script>
 </body>
 </html>
-
-
