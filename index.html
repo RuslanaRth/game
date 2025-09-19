@@ -8,7 +8,7 @@
   html,body{height:100%;margin:0;background:#000;font-family:monospace;}
   canvas{display:block; width:100vw; height:100vh;}
   #overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
-  #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000}
+  #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
 </style>
 </head>
 <body>
@@ -48,14 +48,9 @@ const IMAGES = {
   girl1:'girl1.png', girl2:'girl2.png', girl3:'girl3.png',
   oops:'oops.jpg', oops2:'oops2.jpg'
 };
-const SOUNDS = {
-  fail: new Audio('fail.mp3'),
-  kitty: new Audio('kitty.mp3')
-};
-function playAudioSafe(a){
-  if(!a) return;
-  try{ const p = a.play(); if(p && p.catch) p.catch(()=>{}); }catch(e){}
-}
+
+// Исправлено: инициализация звуков после загрузки
+let SOUNDS = {};
 
 /* ================= preload images ================= */
 let images = {};
@@ -68,11 +63,38 @@ function loadImage(key,src){
     img.src = src;
   });
 }
+
+// Добавлена функция загрузки звуков
+function loadSound(key, src) {
+  return new Promise(resolve => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.oncanplaythrough = () => { 
+      SOUNDS[key] = audio; 
+      resolve({ok:true,key}); 
+    };
+    audio.onerror = () => { 
+      missing.push(src); 
+      SOUNDS[key] = null; 
+      resolve({ok:false,key}); 
+    };
+    audio.src = src;
+  });
+}
+
 async function preloadAll(){
   overlay.textContent = 'Загружаю ресурсы...';
   missing=[]; images={};
-  const promises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
-  await Promise.all(promises);
+  SOUNDS = {}; // Инициализируем звуки
+  
+  const imagePromises = Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
+  const soundPromises = [
+    loadSound('fail', 'fail.mp3'),
+    loadSound('kitty', 'kitty.mp3')
+  ];
+  
+  await Promise.all([...imagePromises, ...soundPromises]);
+  
   if(missing.length){
     overlay.textContent = 'Не загружены: ' + missing.join(', ');
   } else {
@@ -81,12 +103,20 @@ async function preloadAll(){
   }
 }
 
+function playAudioSafe(soundName){
+  if(!SOUNDS[soundName]) return;
+  try{ 
+    const audio = SOUNDS[soundName].cloneNode();
+    const p = audio.play(); 
+    if(p && p.catch) p.catch(()=>{}); 
+  }catch(e){}
+}
+
 /* ================= entities & placement ================= */
 let page = 1; // 1..4
 let showOops=false, showOops2=false;
 let ken = { x:50, y:0, w:150, h:170, vx:6, action:'idle', frame:0, animTimer:0, facing:'right' };
-
-const enemies = {
+  const enemies = {
   level2: { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
   level3: [
     { x:0, y:0, w:150, h:170, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 },
@@ -136,7 +166,7 @@ function handleAttackOrInteract(){
   if(page === 4 && nearGirl()){
     // do the "action" instead of punch
     showOops = true;
-    playAudioSafe(SOUNDS.fail);
+    playAudioSafe('fail');
     oopsBtn.style.display='block';
     oopsBtn.focus && oopsBtn.blur();
     return;
@@ -148,8 +178,8 @@ function handleAttackOrInteract(){
     if(en.alive && isColliding(ken,en)){
       en.hp -= 1;
       en.action = 'punch'; en.hitTimer = 18;
-      playAudioSafe(SOUNDS.fail);
-      if(en.hp <= 0){ en.alive = false; playAudioSafe(SOUNDS.kitty); }
+      playAudioSafe('fail');
+      if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
     }
     return;
   }
@@ -159,8 +189,8 @@ function handleAttackOrInteract(){
       if(en.alive && isColliding(ken,en)){
         en.hp -= 1;
         en.action = 'punch'; en.hitTimer = 18;
-        playAudioSafe(SOUNDS.fail);
-        if(en.hp <= 0){ en.alive = false; playAudioSafe(SOUNDS.kitty); }
+        playAudioSafe('fail');
+        if(en.hp <= 0){ en.alive = false; playAudioSafe('kitty'); }
         return;
       }
     }
@@ -203,8 +233,7 @@ function drawKen(){
   const idleSet = [images.idle, images.idle2].filter(Boolean);
   const walkSet = [images.walk1, images.walk2].filter(Boolean);
   const punchImg = images.punch || null;
-
-  let img = null;
+let img = null;
   if(ken.action === 'walk' && walkSet.length) img = walkSet[Math.floor(ken.animTimer/10) % walkSet.length];
   else if(ken.action === 'punch' && punchImg) img = punchImg;
   else if(idleSet.length) img = idleSet[Math.floor(ken.animTimer/20) % idleSet.length];
@@ -313,7 +342,6 @@ function render(){
     ctx.fillStyle='yellow'; ctx.font='20px monospace';
     ctx.fillText('Подойди и нажми Space', canvas.width - 360, canvas.height - 340);
   }
-
   // show oops popups
   if(showOops){
     if(images.oops) ctx.drawImage(images.oops, canvas.width/2 - 200, canvas.height/2 - 150, 400, 300);
@@ -322,16 +350,15 @@ function render(){
   if(showOops2){
     if(images.oops2) ctx.drawImage(images.oops2, canvas.width/2 - 200, canvas.height/2 - 150, 400, 300);
     else drawPlaceholder(canvas.width/2 - 200, canvas.height/2 - 150, 400, 300, 'oops2');
-    // confetti drawn over everything
-    // confetti already drawn in updateAndDrawConfetti() that is called from update()
   }
 }
-  /* ================= button handler for Oops! ================= */
+
+/* ================= button handler for Oops! ================= */
 oopsBtn.addEventListener('click', ()=>{
   showOops = false;
   showOops2 = true;
   oopsBtn.style.display='none';
-  playAudioSafe(SOUNDS.kitty);
+  playAudioSafe('kitty');
   startConfetti();
 });
 
