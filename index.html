@@ -42,8 +42,15 @@ const IMAGES = {
   mushdeath: 'mushdeath.png'
 };
 
+const SOUNDS = {
+  punch: 'punch.wav',
+  enemy_hit: 'hit.wav',
+  enemy_death: 'death.wav'
+};
+
 /* ------------- Загрузка с обработкой ошибок ------------- */
 let images = {};
+let sounds = {};
 let missing = [];
 
 function loadImage(key, src) {
@@ -55,10 +62,27 @@ function loadImage(key, src) {
   });
 }
 
+function loadSound(key, src) {
+  return new Promise(resolve => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.oncanplaythrough = () => { sounds[key] = audio; resolve({ok:true,key}); };
+    audio.onerror = () => { missing.push(src); sounds[key] = null; resolve({ok:false,key}); };
+    audio.src = src;
+  });
+}
+
 async function preloadAll() {
   overlay.textContent = 'Загружаю ресурсы...';
-  const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
-  await Promise.all(promises);
+  
+  // Загружаем изображения
+  const imagePromises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
+  
+  // Загружаем звуки
+  const soundPromises = Object.entries(SOUNDS).map(([k,s]) => loadSound(k,s));
+  
+  await Promise.all([...imagePromises, ...soundPromises]);
+  
   if (missing.length) {
     errorsBox.style.display = 'block';
     errorsBox.textContent = 'Не загружены: ' + missing.join(', ');
@@ -66,6 +90,15 @@ async function preloadAll() {
     errorsBox.style.display = 'none';
   }
   overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар. Дошёл до правого края — переход на следующий уровень.';
+}
+
+/* ------------- Воспроизведение звуков ------------- */
+function playSound(soundName, volume = 0.7) {
+  if (sounds[soundName]) {
+    const sound = sounds[soundName].cloneNode();
+    sound.volume = volume;
+    sound.play().catch(e => console.log('Sound error:', e));
+  }
 }
 
 /* ------------- Игровые сущности ------------- */
@@ -99,8 +132,7 @@ const enemies = {
 
 let page = 1; // 1, 2 или 3
 let deathEffects = []; // Массив для эффектов смерти
-
-/* ------------- Управление клавишами ------------- */
+ /* ------------- Управление клавишами ------------- */
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
@@ -109,8 +141,8 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 /* ------------- Логика столкновения ------------- */
-function isColliding(a, b) {
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+function isColliding(a,b) {
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
 
 /* ------------- Отрисовка персонажа ------------- */
@@ -134,23 +166,10 @@ function drawKen() {
     ctx.restore();
   }
 }
- /* ------------- Отрисовка врага ------------- */
+
+/* ------------- Отрисовка врага ------------- */
 function drawEnemy(enemy) {
-  if (!enemy.alive) {
-    // Рисуем прах после смерти
-    if (images.mushdeath) {
-      ctx.drawImage(images.mushdeath, enemy.x, enemy.y, enemy.w, enemy.h);
-    } else {
-      ctx.fillStyle = '#666666';
-      ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('ПРАХ', enemy.x + enemy.w/2, enemy.y + enemy.h/2);
-      ctx.textAlign = 'left';
-    }
-    return;
-  }
+  if (!enemy.alive) return; // Не рисуем мёртвых врагов здесь - они рисуются отдельно
   
   const imgSet = (enemy.action === 'punch') ? [images.mushpunch]
                 : [images.mushidle1, images.mushidle2];
@@ -161,6 +180,33 @@ function drawEnemy(enemy) {
   const img = imgSet[enemy.frame];
   if (img) {
     ctx.drawImage(img, enemy.x, enemy.y, enemy.w, enemy.h);
+  }
+}
+
+/* ------------- Отрисовка праха (отдельно) ------------- */
+function drawDeathEffects() {
+  // Рисуем прах для уровня 2
+  if (page === 2 && !enemies.level2.alive) {
+    if (images.mushdeath) {
+      ctx.drawImage(images.mushdeath, enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
+    } else {
+      ctx.fillStyle = '#666666';
+      ctx.fillRect(enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
+    }
+  }
+  
+  // Рисуем прах для уровня 3
+  if (page === 3) {
+    enemies.level3.forEach(enemy => {
+      if (!enemy.alive) {
+        if (images.mushdeath) {
+          ctx.drawImage(images.mushdeath, enemy.x, enemy.y, enemy.w, enemy.h);
+        } else {
+          ctx.fillStyle = '#666666';
+          ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
+        }
+      }
+    });
   }
 }
 
@@ -185,16 +231,19 @@ function update() {
   if (keys['Space']) {
     if (ken.action !== 'punch') {
       ken.action = 'punch';
+      playSound('punch', 0.5); // Звук удара
       
       // Проверка попадания по врагам в зависимости от уровня
       if (page === 2 && enemies.level2.alive && isColliding(ken, enemies.level2)) {
         enemies.level2.hp -= 1;
         enemies.level2.action = 'punch';
         enemies.level2.hitTimer = 20;
+        playSound('enemy_hit', 0.6); // Звук попадания
         
         if (enemies.level2.hp <= 0) {
           enemies.level2.alive = false;
           enemies.level2.action = 'death';
+          playSound('enemy_death', 0.7); // Звук смерти
         }
       }
       
@@ -204,10 +253,11 @@ function update() {
             enemy.hp -= 1;
             enemy.action = 'punch';
             enemy.hitTimer = 20;
-            
+            playSound('enemy_hit', 0.6); // Звук попадания
             if (enemy.hp <= 0) {
               enemy.alive = false;
               enemy.action = 'death';
+              playSound('enemy_death', 0.7); // Звук смерти
             }
           }
         });
@@ -267,7 +317,24 @@ function render() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  // UI
+  // 1. Сначала рисуем прах (фон)
+  drawDeathEffects();
+
+  // 2. Затем рисуем живых врагов
+  if (page === 2 && enemies.level2.alive) {
+    drawEnemy(enemies.level2);
+  } else if (page === 3) {
+    enemies.level3.forEach(enemy => {
+      if (enemy.alive) {
+        drawEnemy(enemy);
+      }
+    });
+  }
+
+  // 3. Затем рисуем главного героя (поверх всего)
+  drawKen();
+
+  // UI поверх всего
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; 
   ctx.fillRect(8, 8, 120, 40);
   ctx.fillStyle = '#fff'; 
@@ -281,17 +348,6 @@ function render() {
   if (page === 3) {
     const aliveEnemies = enemies.level3.filter(e => e.alive).length;
     ctx.fillText('Врагов: ' + aliveEnemies, 12, 50);
-  }
-  // Персонажи
-  drawKen();
-  
-  // Враги в зависимости от уровня
-  if (page === 2) {
-    drawEnemy(enemies.level2);
-  } else if (page === 3) {
-    enemies.level3.forEach(enemy => {
-      drawEnemy(enemy);
-    });
   }
 }
 
@@ -310,4 +366,3 @@ preloadAll().then(() => {
 </script>
 </body>
 </html>
-
