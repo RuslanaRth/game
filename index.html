@@ -22,7 +22,7 @@ window.addEventListener('error', (e)=> {
   const ov = document.getElementById('overlay');
   ov.style.display='block';
   ov.style.background='rgba(128,0,0,0.9)';
-  ov.textContent = Ошибка: ${e.message} (строка ${e.lineno});
+  ov.textContent = 'Error: ${e.message} (line ${e.lineno})';
   console.error(e.error || e.message);
 });
 
@@ -392,3 +392,4 @@ preloadAll().then(()=>{
 </script>
 </body>
 </html>
+
