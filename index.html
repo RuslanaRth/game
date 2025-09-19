@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ken — сюжет (retro fixed)</title>
+<title>Ken — сюжет (fixed)</title>
 <style>
-  html,body{height:100%;margin:0;background:#000;font-family:monospace;}
-  canvas{display:block;width:100vw;height:100vh;}
-  #overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
-  #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
+html,body{height:100%;margin:0;background:#000;font-family:monospace;}
+canvas{display:block;width:100vw;height:100vh;}
+#overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
+#oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
 </style>
 </head>
 <body>
@@ -16,12 +16,9 @@
 <div id="overlay">Загрузка ресурсов... (кликни или нажми любую клавишу, чтобы включить звук)</div>
 <button id="oopsBtn">Oops!</button>
 
-<script src="https://cdn.jsdelivr.net/gh/mneubrand/jsfxr/jsfxr.js"></script>
 <script>
-/* ---------- данные и стейт ---------- */
 let images = {}, SOUNDS = {}, missing = [];
-let page = 1;
-let showOops = false, showOops2 = false;
+let page = 1, showOops=false, showOops2=false;
 
 const ken = { x:50, y:0, w:200, h:200, vx:6, action:'idle', animTimer:0, facing:'right' };
 const enemies = {
@@ -31,9 +28,8 @@ const enemies = {
     { x:0, y:0, w:200, h:200, hp:5, alive:true, animTimer:0, action:'idle', hitTimer:0 }
   ]
 };
-const girl = { x:0, y:0, w:200, h:200 };
+const girl = { x:0, y:0, w:220, h:200 };
 
-/* ---------- canvas ---------- */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
@@ -48,7 +44,7 @@ window.addEventListener('resize', resize);
 resize();
 
 function placeEntities(){
-  const ground = canvas.height - ken.h - 5; // опускаем чуть ниже
+  const ground = canvas.height - ken.h - 20;
   ken.y = ground;
   enemies.level2.x = Math.max(300, canvas.width - 400); enemies.level2.y = ground;
   enemies.level3[0].x = Math.max(200, canvas.width - 800); enemies.level3[0].y = ground;
@@ -56,9 +52,7 @@ function placeEntities(){
   girl.x = canvas.width - 280; girl.y = ground;
 }
 
-function isColliding(a, b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
-}
+function isColliding(a, b){ return !(a.x+a.w<b.x || a.x>b.x+b.w || a.y+a.h<b.y || a.y>b.y+b.h); }
 
 function drawPlaceholder(x,y,w,h,label){
   ctx.fillStyle='#222'; ctx.fillRect(x,y,w,h);
@@ -66,105 +60,132 @@ function drawPlaceholder(x,y,w,h,label){
   ctx.fillStyle='#fff'; ctx.font='14px monospace'; ctx.fillText(label, x+6, y+18);
 }
 
-/* ---------- отрисовка ---------- */
-function drawKen(){ drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken'); }
-function drawEnemy(en){ if(en.alive) drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); }
+function drawKen(){
+  const idleSet = [images.idle, images.idle1].filter(Boolean);
+  const walkSet = [images.walk1, images.walk2].filter(Boolean);
+  const punchImg = images.punch || null;
+  let img=null;
+  if(ken.action==='walk' && walkSet.length) img = walkSet[Math.floor(ken.animTimer/10)%walkSet.length];
+  else if(ken.action==='punch' && punchImg) img=punchImg;
+  else if(idleSet.length) img = idleSet[Math.floor(ken.animTimer/20)%idleSet.length];
+  if(!img){ drawPlaceholder(ken.x, ken.y, ken.w, ken.h, 'Ken'); return; }
+  ctx.save();
+  if(ken.facing==='left'){ ctx.scale(-1,1); ctx.drawImage(img, -ken.x-ken.w, ken.y, ken.w, ken.h); }
+  else ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
+  ctx.restore();
+}
+
+function drawEnemy(en){
+  if(!en.alive) return;
+  const set = (en.action==='punch')?[images.mushpunch].filter(Boolean):[images.mushidle1, images.mushidle2].filter(Boolean);
+  if(set.length===0){ drawPlaceholder(en.x, en.y, en.w, en.h, 'Mush'); return; }
+  const img=set[Math.floor(en.animTimer/12)%set.length];
+  if(img) ctx.drawImage(img, en.x, en.y, en.w, en.h);
+}
+
 function drawDeathPuffs(){
-  if(page!==4){ // убираем прахи на 4 сцене
-    if(!enemies.level2.alive) drawPlaceholder(enemies.level2.x,enemies.level2.y,enemies.level2.w,enemies.level2.h,'Dust');
-    enemies.level3.forEach(en=>{ if(!en.alive) drawPlaceholder(en.x,en.y,en.w,en.h,'Dust'); });
-  }
+  if(!enemies.level2.alive && images.mushdeath) ctx.drawImage(images.mushdeath, enemies.level2.x, enemies.level2.y, enemies.level2.w, enemies.level2.h);
+  enemies.level3.forEach(en=>{ if(!en.alive && images.mushdeath) ctx.drawImage(images.mushdeath, en.x, en.y, en.w, en.h); });
 }
-function drawGirl(){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); }
-
-/* ---------- ретро-звуки через jsfxr ---------- */
-function genSound(params){ return new Audio(jsfxr(params)); }
-function initSounds(){
-  SOUNDS = {
-    whiff: genSound([0,,0.18,,0.14,0.27,,,,,,,,,0.3,,,,,0.7,,,0.2,,0.3]),
-    hit: genSound([0,,0.07,0.23,0.22,0.47,0.1,-0.46,,,,,,,,,0.26,,0.49,0.02,0.42,0.13,0.18]),
-    death: genSound([1,,0.27,0.57,0.37,0.26,,-0.58,,,,,0.25,0.52,,,,,,0.76,,,0.27,0.17]),
-    fail: genSound([2,,0.25,,0.26,0.45,,0.3,,,,,,,,0.42,,,1,,,0.2,,0.3]),
-    kitty: genSound([0,,0.3,,0.3,0.4,,0.3,,,,,,0.2,,,,,1,,,0.3,,0.2])
-  };
+  function drawGirl(){
+  const frames=[images.girl1, images.girl2, images.girl3].filter(Boolean);
+  if(frames.length===0){ drawPlaceholder(girl.x, girl.y, girl.w, girl.h, 'Girl'); return; }
+  const img = frames[Math.floor(Date.now()/400)%frames.length];
+  ctx.drawImage(img, girl.x, girl.y, girl.w, girl.h);
 }
-function playSound(name){ if(SOUNDS[name]) SOUNDS[name].cloneNode().play(); }
 
-/* ---------- ввод ---------- */
-const keys = {};
-let lastPunchTime = 0;
-const punchCooldown = 180;
-  window.addEventListener('keydown', (e)=>{
-  if(e.code === 'Space'){
-    e.preventDefault(); if(e.repeat) return;
-    keys['Space'] = true; handleAction(); return;
-  }
-  if(e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = true;
-});
-window.addEventListener('keyup', (e)=>{ if(e.code==='Space') keys['Space']=false; if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=false; });
+const IMAGES = {
+  back1:'back1.jpg', back2:'back2.jpg', back3:'back3.jpg', back4:'back4.jpg',
+  idle:'idle.png', idle1:'idle1.png', walk1:'walk1.png', walk2:'walk2.png', punch:'punch.png',
+  mushidle1:'mushidle1.png', mushidle2:'mushidle2.png', mushpunch:'mushpunch.png', mushdeath:'mushdeath.png',
+  girl1:'girl1.png', girl2:'girl2.png', girl3:'girl3.png',
+  oops:'oops.jpg', oops2:'oops2.jpg'
+};
+function loadImage(key,src){ return new Promise(res=>{ const img=new Image(); img.onload=()=>{images[key]=img; res({ok:true,key});}; img.onerror=()=>{images[key]=null; missing.push(src); res({ok:false,key});}; img.src=src; }); }
+function loadSound(key,src){ return new Promise(res=>{ const a=new Audio(); a.preload='auto'; a.oncanplaythrough=()=>{SOUNDS[key]=a; res({ok:true,key});}; a.onerror=()=>{SOUNDS[key]=null; missing.push(src); res({ok:false,key});}; a.src=src; }); }
 
-/* ---------- логика ---------- */
-function nearGirl(){ return isColliding(ken, girl); }
-function attackHitbox(){
-  return { x:ken.facing==='right'?ken.x+ken.w-30:ken.x-60, y:ken.y+20, w:90, h:ken.h-40 };
+async function preloadAll(){
+  overlay.textContent='Загружаю ресурсы...'; missing=[]; images={}; SOUNDS={};
+  const imgPromises=Object.entries(IMAGES).map(([k,s])=>loadImage(k,s));
+  const sndPromises=[loadSound('fail','fail.mp3'),loadSound('kitty','kitty.mp3'),loadSound('hit','hit.mp3'),loadSound('whiff','whiff.mp3')];
+  await Promise.all([...imgPromises,...sndPromises]);
+  overlay.textContent=missing.length?'Не загружены: '+missing.join(', '):'Кликни или нажми любую клавишу, чтобы включить звук';
 }
+
+let audioUnlocked=false, audioCtx=null;
+function unlockAudio(){
+  if(audioUnlocked) return; audioUnlocked=true;
+  try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume().catch(()=>{}); const o=audioCtx.createOscillator(), g=audioCtx.createGain(); g.gain.value=0; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.02); }catch(e){}
+  Object.values(SOUNDS).forEach(a=>{ if(!a) return; try{ a.volume=0; const p=a.play(); if(p && p.catch) p.catch(()=>{}); setTimeout(()=>{try{a.pause();a.currentTime=0;a.volume=1;}catch(e){}},60); }catch(e){} });
+  overlay.style.display='none';
+}
+window.addEventListener('pointerdown', unlockAudio, {once:true});
+window.addEventListener('keydown', unlockAudio, {once:true});
+function playSound(name){ const a=SOUNDS[name]; if(!a) return; try{ const node=a.cloneNode(); node.play().catch(()=>{}); }catch(e){} }
+
+const keys={}; let lastPunchTime=0; const punchCooldown=180;
+window.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); if(e.repeat) return; keys['Space']=true; handleAction(); return; } if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=true; });
+window.addEventListener('keyup',e=>{ if(e.code==='Space') keys['Space']=false; if(e.code==='ArrowLeft'||e.code==='ArrowRight') keys[e.code]=false; });
+
+function nearGirl(){ return isColliding(ken,girl); }
+function attackHitbox(){ const range=90, verticalInset=30; let hb={x:0,y:ken.y+verticalInset,w:range,h:ken.h-verticalInset*1.5}; if(ken.facing==='right') hb.x=ken.x+ken.w-30; else hb.x=ken.x-range+30; return hb; }
 
 function handleAction(){
+  unlockAudio();
   if(showOops||showOops2) return;
   if(Date.now()-lastPunchTime<punchCooldown) return;
   lastPunchTime=Date.now();
 
   if(page===4 && nearGirl()){ showOops=true; playSound('fail'); oopsBtn.style.display='block'; return; }
 
-  let hit=false;
-  if(page===2 && enemies.level2.alive && isColliding(attackHitbox(), enemies.level2)){
-    enemies.level2.hp--; hit=true; if(enemies.level2.hp<=0){ enemies.level2.alive=false; playSound('death'); }
-  }
-  if(page===3){
-    for(const en of enemies.level3){
-      if(en.alive && isColliding(attackHitbox(), en)){
-        en.hp--; hit=true; if(en.hp<=0){ en.alive=false; playSound('death'); }
-      }
-    }
-  }
+  ken.action='punch'; let hit=false;
+  const hb=attackHitbox();
+
+  if(page===2){ const en=enemies.level2; if(en.alive && isColliding(hb,en)){ en.hp--; hit=true; en.action='punch'; en.hitTimer=18; if(en.hp<=0) en.alive=false; } }
+  if(page===3){ for(const en of enemies.level3){ if(en.alive && isColliding(hb,en)){ en.hp--; hit=true; en.action='punch'; en.hitTimer=18; if(en.hp<=0) en.alive=false; } } }
+
   playSound(hit?'hit':'whiff');
+  setTimeout(()=>{ if(ken.action==='punch') ken.action='idle'; }, 260);
 }
+  oopsBtn.addEventListener('click',()=>{ showOops=false; showOops2=true; oopsBtn.style.display='none'; playSound('kitty'); });
 
-/* ---------- кнопка oops ---------- */
-oopsBtn.addEventListener('click',()=>{ showOops=false; showOops2=true; oopsBtn.style.display='none'; playSound('kitty'); });
-
-/* ---------- цикл ---------- */
 function update(){
   if(!showOops && !showOops2){
-    if(keys['ArrowRight']){ ken.x+=ken.vx; ken.facing='right'; }
-    else if(keys['ArrowLeft']){ ken.x-=ken.vx; ken.facing='left'; }
+    if(keys['ArrowRight']){ ken.x+=ken.vx; ken.action='walk'; ken.facing='right'; }
+    else if(keys['ArrowLeft']){ ken.x-=ken.vx; ken.action='walk'; ken.facing='left'; }
+    else if(ken.action!=='punch') ken.action='idle';
   }
   ken.x=Math.max(0,Math.min(canvas.width-ken.w,ken.x));
-  if(page===1&&ken.x>=canvas.width-ken.w-10){page=2;ken.x=40;}
-  else if(page===2&&ken.x>=canvas.width-ken.w-10&&!enemies.level2.alive){page=3;ken.x=40;}
-  else if(page===3&&ken.x>=canvas.width-ken.w-10){page=4;ken.x=40; enemies.level3.forEach(e=>e.alive=false);} // сброс врагов
+  ken.animTimer++;
+
+  if(enemies.level2.hitTimer>0){ enemies.level2.hitTimer--; if(enemies.level2.hitTimer===0) enemies.level2.action='idle'; }
+  enemies.level3.forEach(en=>{ if(en.hitTimer>0){ en.hitTimer--; if(en.hitTimer===0) en.action='idle'; } });
+
+  if(page===1 && ken.x>=canvas.width-ken.w-10){ page=2; ken.x=40; }
+  else if(page===2 && ken.x>=canvas.width-ken.w-10 && !enemies.level2.alive){ page=3; ken.x=40; }
+  else if(page===3 && ken.x>=canvas.width-ken.w-10){ page=4; ken.x=40; }
 }
 
 function render(){
-  ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  const bg=(page===1)?images.back1:(page===2)?images.back2:(page===3)?images.back3:images.back4;
+  if(bg) ctx.drawImage(bg,0,0,canvas.width,canvas.height); else ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
   drawDeathPuffs();
   if(page===2) drawEnemy(enemies.level2);
   if(page===3) enemies.level3.forEach(drawEnemy);
   if(page===4) drawGirl();
   drawKen();
-
-  ctx.fillStyle='#fff'; ctx.fillText('Уровень: '+page,14,30);
-
-  if(page===4&&!showOops&&!showOops2&&nearGirl()){ ctx.fillStyle='yellow'; ctx.fillText('Нажми A', canvas.width-300, canvas.height-260); }
-  if(showOops) drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops');
-  if(showOops2) drawPlaceholder(canvas.width/2-180,canvas.height/2-150,360,300,'oops2'); // уменьшено
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(8,8,160,34);
+  ctx.fillStyle='#fff'; ctx.font='16px monospace'; ctx.fillText('Уровень: '+page,14,30);
+  if(page===4 && !showOops && !showOops2 && nearGirl()){ ctx.fillStyle='yellow'; ctx.font='20px monospace'; ctx.fillText('Нажми A',canvas.width-300,canvas.height-260); }
+  if(showOops){ if(images.oops) ctx.drawImage(images.oops,0,0,canvas.width,canvas.height); else drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops'); }
+  if(showOops2){ if(images.oops2) ctx.drawImage(images.oops2,0,0,canvas.width,canvas.height); else drawPlaceholder(canvas.width/2-200,canvas.height/2-150,400,300,'oops2'); }
 }
 
-function loop(){ update(); render(); requestAnimationFrame(loop); }
+function loop(){ try{ update(); render(); requestAnimationFrame(loop); }catch(err){ overlay.style.display='block'; overlay.style.background='rgba(128,0,0,0.9)'; overlay.textContent='Runtime error: '+(err && err.message?err.message:err); console.error(err); } }
 
-/* ---------- старт ---------- */
-initSounds();
-loop();
+preloadAll().then(()=>{ placeEntities(); loop(); }).catch(e=>{ overlay.style.display='block'; overlay.textContent='Ошибка при старте: '+e; console.error(e); });
+window.addEventListener('error', e=>{ overlay.style.display='block'; overlay.style.background='rgba(128,0,0,0.9)'; overlay.textContent='Error: '+(e&&e.message?e.message:e); console.error(e.error||e.message); });
+
 </script>
 </body>
 </html>
