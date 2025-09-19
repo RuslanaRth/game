@@ -1,50 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<title>Ken — test levels</title>
+<style>
+  html,body {height:100%; margin:0; background:#000;}
+  #gameCanvas {
+    display:block; 
+    width: 100vw;
+    height: 100vh;
+    background:#222;
+  }
+  #overlay {position:fixed; left:10px; top:10px; color:#fff; font-family: monospace; background:rgba(0,0,0,0.6); padding:6px; border-radius:6px;}
+  #errors {position:fixed; right:10px; top:10px; color:#fff; font-family:monospace; background:rgba(128,0,0,0.6); padding:6px; border-radius:6px; display:none;}
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="900" height="500"></canvas>
+<div id="overlay">Загрузка ресурсов...</div>
+<div id="errors"></div>
+
+<script>
+/* ------------- Настройки и список файлов ------------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const errorsBox = document.getElementById('errors');
+
+const IMAGES = {
+  back1: 'back1.jpg',
+  back2: 'back2.jpg',
+  idle: 'idle.png',
+  idle2: 'idle2.png',
+  walk1: 'walk1.png',
+  walk2: 'walk2.png',
+  punch: 'punch.png',
+  mushidle1: 'mushidle1.png',
+  mushidle2: 'mushidle2.png',
+  mushpunch: 'mushpunch.png',
+  mushdeath: 'mushdeath.png'
+};
+
+/* ------------- Загрузка с обработкой ошибок ------------- */
+let images = {};
+let missing = [];
+
+function loadImage(key, src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { images[key] = img; resolve({ok:true,key}); };
+    img.onerror = () => { missing.push(src); images[key] = null; resolve({ok:false,key}); };
+    img.src = src;
+  });
+}
+
+async function preloadAll() {
+  overlay.textContent = 'Загружаю ресурсы...';
+  const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
+  await Promise.all(promises);
+  if (missing.length) {
+    errorsBox.style.display = 'block';
+    errorsBox.textContent = 'Не загружены: ' + missing.join(', ');
+  } else {
+    errorsBox.style.display = 'none';
+  }
+  overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар. Дошёл до правого края — переход на уровень 2.';
+}
+
+/* ------------- Игровые сущности ------------- */
+const ken = {
+  x: 50, y: canvas.height - 200, w: 200, h: 200,
+  vx: 5,
+  action: 'idle', frame:0, animTimer:0,
+  facing: 'right'
+};
+
+const mush = {
+  x: 600, y: canvas.height - 200, w: 200, h: 200,
+  hp: 5, alive: true, action:'idle', frame:0, animTimer:0,
+  hitTimer: 0
+};
+
+let page = 1; // 1 или 2
+
+/* ------------- Управление клавишами ------------- */
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+/* ------------- Логика столкновения ------------- */
+function isColliding(a,b) {
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
+}
+
+/* ------------- Отрисовка персонажа ------------- */
+function drawKen() {
+  const imgSet = (ken.action === 'walk') ? [images.walk1, images.walk2]
+                : (ken.action === 'punch') ? [images.punch]
+                : [images.idle, images.idle2];
+
+  ken.animTimer++;
+  if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+
+  const img = imgSet[ken.frame];
+  if (img) {
+    ctx.save();
+    if (ken.facing === 'left') {
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h);
+    } else {
+      ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
+    }
+    ctx.restore();
+  }
+}
+
+/* ------------- Отрисовка врага ------------- */
+function drawMush() {
+  if (!mush.alive) return;
+  
+  const imgSet = (mush.action === 'punch') ? [images.mushpunch]
+                : (mush.action === 'death') ? [images.mushdeath]
+                : [images.mushidle1, images.mushidle2];
+
+  mush.animTimer++;
+  if (mush.animTimer > 12) { mush.animTimer = 0; mush.frame = (mush.frame+1) % imgSet.length; }
+
+  const img = imgSet[mush.frame];
+  if (img) ctx.drawImage(img, mush.x, mush.y, mush.w, mush.h);
+}
+Лана, [19.09.2025 17:52]
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<title>Ken — test levels</title>
+<style>
+  html,body {height:100%; margin:0; background:#000;}
+  #gameCanvas {
+    display:block; 
+    width: 100vw;
+    height: 100vh;
+    background:#222;
+  }
+  #overlay {position:fixed; left:10px; top:10px; color:#fff; font-family: monospace; background:rgba(0,0,0,0.6); padding:6px; border-radius:6px;}
+  #errors {position:fixed; right:10px; top:10px; color:#fff; font-family:monospace; background:rgba(128,0,0,0.6); padding:6px; border-radius:6px; display:none;}
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="900" height="500"></canvas>
+<div id="overlay">Загрузка ресурсов...</div>
+<div id="errors"></div>
+
+<script>
+/* ------------- Настройки и список файлов ------------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const errorsBox = document.getElementById('errors');
+
+const IMAGES = {
+  back1: 'back1.jpg',
+  back2: 'back2.jpg',
+  idle: 'idle.png',
+  idle2: 'idle2.png',
+  walk1: 'walk1.png',
+  walk2: 'walk2.png',
+  punch: 'punch.png',
+  mushidle1: 'mushidle1.png',
+  mushidle2: 'mushidle2.png',
+  mushpunch: 'mushpunch.png',
+  mushdeath: 'mushdeath.png'
+};
+
+/* ------------- Загрузка с обработкой ошибок ------------- */
+let images = {};
+let missing = [];
+
+function loadImage(key, src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { images[key] = img; resolve({ok:true,key}); };
+    img.onerror = () => { missing.push(src); images[key] = null; resolve({ok:false,key}); };
+    img.src = src;
+  });
+}
+
+async function preloadAll() {
+  overlay.textContent = 'Загружаю ресурсы...';
+  const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
+  await Promise.all(promises);
+  if (missing.length) {
+    errorsBox.style.display = 'block';
+    errorsBox.textContent = 'Не загружены: ' + missing.join(', ');
+  } else {
+    errorsBox.style.display = 'none';
+  }
+  overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар. Дошёл до правого края — переход на уровень 2.';
+}
+
+/* ------------- Игровые сущности ------------- */
+const ken = {
+  x: 50, y: canvas.height - 200, w: 200, h: 200,
+  vx: 5,
+  action: 'idle', frame:0, animTimer:0,
+  facing: 'right'
+};
+
+const mush = {
+  x: 600, y: canvas.height - 200, w: 200, h: 200,
+  hp: 5, alive: true, action:'idle', frame:0, animTimer:0,
+  hitTimer: 0
+};
+
+let page = 1; // 1 или 2
+
+/* ------------- Управление клавишами ------------- */
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+/* ------------- Логика столкновения ------------- */
+function isColliding(a,b) {
+  return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
+}
+
+/* ------------- Отрисовка персонажа ------------- */
+function drawKen() {
+  const imgSet = (ken.action === 'walk') ? [images.walk1, images.walk2]
+                : (ken.action === 'punch') ? [images.punch]
+                : [images.idle, images.idle2];
+
+  ken.animTimer++;
+  if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
+
+  const img = imgSet[ken.frame];
+  if (img) {
+    ctx.save();
+    if (ken.facing === 'left') {
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h);
+    } else {
+      ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
+    }
+    ctx.restore();
+  }
+}
+
+/* ------------- Отрисовка врага ------------- */
+function drawMush() {
+  if (!mush.alive) return;
+  
+  const imgSet = (mush.action === 'punch') ? [images.mushpunch]
+                : (mush.action === 'death') ? [images.mushdeath]
+                : [images.mushidle1, images.mushidle2];
+
+  mush.animTimer++;
+  if (mush.animTimer > 12) { mush.animTimer = 0; mush.frame = (mush.frame+1) % imgSet.length; }
+
+  const img = imgSet[mush.frame];
+  if (img) ctx.drawImage(img, mush.x, mush.y, mush.w, mush.h);
+}
+
+Лана, [19.09.2025 17:52]
 /* ------------- Обновление состояния ------------- */
 function update() {
+  // Движение и поворот
   if (keys['ArrowRight']) {
     ken.x += ken.vx;
     ken.action = 'walk';
+    ken.facing = 'right';
   } else if (keys['ArrowLeft']) {
     ken.x -= ken.vx;
     ken.action = 'walk';
+    ken.facing = 'left';
   } else {
     if (ken.action !== 'punch') ken.action = 'idle';
   }
 
   ken.x = Math.max(0, Math.min(canvas.width - ken.w, ken.x));
 
+  // Удар
   if (keys['Space']) {
     if (ken.action !== 'punch') {
       ken.action = 'punch';
       if (page === 2 && mush.alive && isColliding(ken, mush)) {
         mush.hp -= 1;
         mush.action = 'punch';
+        mush.hitTimer = 20; // Таймер для эффекта попадания
+        
         if (mush.hp <= 0) {
           mush.alive = false;
           mush.action = 'death';
-        } else {
-          setTimeout(()=>{ if(mush.alive) mush.action = 'idle'; }, 250);
         }
       }
-      setTimeout(()=>{ if(ken.action === 'punch') ken.action = 'idle'; }, 220);
+      setTimeout(() => { 
+        if (ken.action === 'punch') ken.action = 'idle'; 
+      }, 220);
     }
     keys['Space'] = false;
   }
 
+  // Эффект попадания по врагу
+  if (mush.hitTimer > 0) {
+    mush.hitTimer--;
+    if (mush.hitTimer === 0 && mush.alive) {
+      mush.action = 'idle';
+    }
+  }
+
+  // Переход на уровень 2
   if (page === 1 && ken.x >= canvas.width - ken.w - 10) {
     page = 2;
     ken.x = 40;
-    mush.x = canvas.width - 250; mush.hp = 3; mush.alive = true; mush.action = 'idle';
+    mush.x = canvas.width - 250; 
+    mush.hp = 5; 
+    mush.alive = true; 
+    mush.action = 'idle';
   }
 }
 
 /* ------------- Рендер сцены ------------- */
 function render() {
   const bg = (page === 1) ? images.back1 : images.back2;
-  if (bg) ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+  if (bg) {
+    // Растягиваем фон на весь экран
+    ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle = page === 1 ? '#446' : '#264';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
-  ctx.fillStyle = '#fff'; ctx.font = '16px monospace';
+  // UI
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; 
+  ctx.fillRect(8, 8, 120, 26);
+  ctx.fillStyle = '#fff'; 
+  ctx.font = '16px monospace';
   ctx.fillText('Уровень: ' + page, 12, 26);
+  
+  if (page === 2 && mush.alive) {
+    ctx.fillText('HP: ' + mush.hp, 12, 50);
+  }
 
+  // Персонажи
   drawKen();
   if (page === 2) drawMush();
 }
@@ -63,4 +367,4 @@ preloadAll().then(() => {
 });
 </script>
 </body>
-</html>
+</html>  
