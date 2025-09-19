@@ -219,8 +219,8 @@ function loop(){ update(); render(); requestAnimationFrame(loop); }
 
 /* ---------- старт ---------- */
 preloadAll().then(()=>{ placeEntities(); loop(); }).catch(e=>{overlay.style.display='block'; overlay.textContent='Ошибка при старте: '+e; console.error(e);});
-</script>
 </body>
 </html>
 }
+
 
