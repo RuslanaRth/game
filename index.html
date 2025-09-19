@@ -189,7 +189,7 @@ function startConfetti() {
     y: Math.random()*confettiCanvas.height,
     r: Math.random()*6+4,
     d: Math.random()*50,
-    color: hsl(${Math.random()*360},100%,50%),
+    color: "hsl(" + Math.random()*360 + ",100%,50%)",
     tilt: Math.random()*10-10
   }));
 }
@@ -291,3 +291,4 @@ preloadAll().then(()=>{ overlay.style.display='none'; loop(); });
 </script>
 </body>
 </html>
+
