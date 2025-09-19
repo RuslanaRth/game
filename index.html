@@ -88,7 +88,7 @@ const IMAGES={back1:'back1.jpg',back2:'back2.jpg',back3:'back3.jpg',back4:'back4
   mushidle1:'mushidle1.png',mushidle2:'mushidle2.png',mushpunch:'mushpunch.png',mushdeath:'mushdeath.png',
   girl1:'girl1.png',girl2:'girl2.png',girl3:'girl3.png',
   oops:'oops.jpg',oops2:'oops2.jpg'
-              function loadImage(key,src){return new Promise(res=>{const img=new Image();img.onload=()=>{images[key]=img;res({ok:true,key});};img.onerror=()=>{images[key]=null;missing.push(src);res({ok:false,key});};img.src=src;});}
+function loadImage(key,src){return new Promise(res=>{const img=new Image();img.onload=()=>{images[key]=img;res({ok:true,key});};img.onerror=()=>{images[key]=null;missing.push(src);res({ok:false,key});};img.src=src;});}
 function loadSound(key,src){return new Promise(resolve=>{const a=new Audio();a.preload='auto';a.oncanplaythrough=()=>{SOUNDS[key]=a;resolve({ok:true,key});};a.onerror=()=>{SOUNDS[key]=null;missing.push(src);resolve({ok:false,key});};a.src=src;});}
 
 async function preloadAll(){
@@ -166,3 +166,4 @@ window.addEventListener('error', (e) => {overlay.style.display='block';overlay.s
 </body>
 </html>
 };
+
