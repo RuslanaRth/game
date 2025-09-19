@@ -42,19 +42,43 @@ let totalCount = Object.keys(IMAGES).length;
 function loadImage(key, src) {
   return new Promise(resolve => {
     const img = new Image();
+    let loaded = false;
+    
+    // Таймаут 3 секунды
+    const timeout = setTimeout(() => {
+      if (!loaded) {
+        images[key] = null;
+        loadedCount++;
+        statusBox.style.background = 'rgba(128,0,0,0.6)';
+        statusBox.innerHTML = ТАЙМАУТ!<br>Не грузится: ${src};
+        loaded = true;
+        resolve();
+      }
+    }, 3000);
+
     img.onload = () => { 
-      images[key] = img;
-      loadedCount++;
-      updateStatus();
-      resolve();
+      clearTimeout(timeout);
+      if (!loaded) {
+        images[key] = img;
+        loadedCount++;
+        updateStatus();
+        loaded = true;
+        resolve();
+      }
     };
+    
     img.onerror = () => {
-      images[key] = null;
-      loadedCount++;
-      statusBox.style.background = 'rgba(128,0,0,0.6)';
-      statusBox.innerHTML = ОШИБКА!<br>Не найден: ${src};
-      resolve();
+      clearTimeout(timeout);
+      if (!loaded) {
+        images[key] = null;
+        loadedCount++;
+        statusBox.style.background = 'rgba(128,0,0,0.6)';
+        statusBox.innerHTML = ОШИБКА!<br>Не найден: ${src};
+        loaded = true;
+        resolve();
+      }
     };
+    
     img.src = src;
   });
 }
@@ -63,7 +87,7 @@ function updateStatus() {
   statusBox.innerHTML = Загружено:<br>${loadedCount}/${totalCount};
   if (loadedCount === totalCount) {
     statusBox.style.background = 'rgba(0,100,0,0.6)';
-    overlay.textContent = 'ВСЕ ФАЙЛЫ ЗАГРУЖЕНЫ!';
+    overlay.textContent = 'Загрузка завершена!';
   }
 }
 
@@ -71,23 +95,22 @@ async function preloadAll() {
   overlay.textContent = 'Загружаю ресурсы...';
   const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
   await Promise.all(promises);
-  overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар';
+  overlay.textContent = 'Проверка завершена!';
 }
 
-// Простая отрисовка для теста
 function gameLoop() {
   ctx.fillStyle = '#224466';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
   ctx.fillStyle = '#ffffff';
   ctx.font = '16px Arial';
-  ctx.fillText(Загружено изображений: ${loadedCount}/${totalCount}, 20, 40);
+  ctx.fillText(Загружено: ${loadedCount}/${totalCount}, 20, 40);
   
   if (loadedCount === totalCount) {
     ctx.fillStyle = '#00ff00';
-    ctx.fillText('ВСЕ ФАЙЛЫ ЗАГРУЖЕНЫ!', 20, 70);
+    ctx.fillText('ВСЕ ФАЙЛЫ ПРОВЕРЕНЫ!', 20, 70);
     ctx.fillStyle = '#ffff00';
-    ctx.fillText('Двигайтесь стрелками →', 20, 100);
+    ctx.fillText('Смотрите статус справа →', 20, 100);
   }
   
   requestAnimationFrame(gameLoop);
