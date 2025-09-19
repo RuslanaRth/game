@@ -92,140 +92,6 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 /* ------------- Логика столкновения ------------- */
-function isColliding(a, b) {
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
-}
-
-/* ------------- Отрисовка персонажа ------------- */
-function drawKen() {
-  const imgSet = (ken.action === 'walk') ? [images.walk1, images.walk2]
-                : (ken.action === 'punch') ? [images.punch]
-                : [images.idle, images.idle2];
-
-  ken.animTimer++;
-  if (ken.animTimer > 10) { ken.animTimer = 0; ken.frame = (ken.frame+1) % imgSet.length; }
-
-  const img = imgSet[ken.frame];
-  if (img) {
-    ctx.save();
-    if (ken.facing === 'left') {
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, -ken.x - ken.w, ken.y, ken.w, ken.h);
-    } else {
-      ctx.drawImage(img, ken.x, ken.y, ken.w, ken.h);
-    }
-    ctx.restore();
-  }
-}
-
-/* ------------- Отрисовка врага ------------- */
-function drawMush() {
-  if (!mush.alive) return;
-  
-  const imgSet = (mush.action === 'punch') ? [images.mushpunch]
-                : (mush.action === 'death') ? [images.mushdeath]
-                : [images.mushidle1, images.mushidle2];
-
-  mush.animTimer++;
-  if (mush.animTimer > 12) { mush.animTimer = 0; mush.frame = (mush.frame+1) % imgSet.length; }
-
-  const img = imgSet[mush.frame];
-  if (img) ctx.drawImage(img, mush.x, mush.y, mush.w, mush.h);
-}
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="utf-8"/>
-<title>Ken — test levels</title>
-<style>
-  html,body {height:100%; margin:0; background:#000;}
-  #gameCanvas {
-    display:block; 
-    width: 100vw;
-    height: 100vh;
-    background:#222;
-  }
-  #overlay {position:fixed; left:10px; top:10px; color:#fff; font-family: monospace; background:rgba(0,0,0,0.6); padding:6px; border-radius:6px;}
-  #errors {position:fixed; right:10px; top:10px; color:#fff; font-family:monospace; background:rgba(128,0,0,0.6); padding:6px; border-radius:6px; display:none;}
-</style>
-</head>
-<body>
-<canvas id="gameCanvas" width="900" height="500"></canvas>
-<div id="overlay">Загрузка ресурсов...</div>
-<div id="errors"></div>
-
-<script>
-/* ------------- Настройки и список файлов ------------- */
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const overlay = document.getElementById('overlay');
-const errorsBox = document.getElementById('errors');
-
-const IMAGES = {
-  back1: 'back1.jpg',
-  back2: 'back2.jpg',
-  idle: 'idle.png',
-  idle2: 'idle2.png',
-  walk1: 'walk1.png',
-  walk2: 'walk2.png',
-  punch: 'punch.png',
-  mushidle1: 'mushidle1.png',
-  mushidle2: 'mushidle2.png',
-  mushpunch: 'mushpunch.png',
-  mushdeath: 'mushdeath.png'
-};
-
-/* ------------- Загрузка с обработкой ошибок ------------- */
-let images = {};
-let missing = [];
-
-function loadImage(key, src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => { images[key] = img; resolve({ok:true,key}); };
-    img.onerror = () => { missing.push(src); images[key] = null; resolve({ok:false,key}); };
-    img.src = src;
-  });
-}
-
-async function preloadAll() {
-  overlay.textContent = 'Загружаю ресурсы...';
-  const promises = Object.entries(IMAGES).map(([k,s]) => loadImage(k,s));
-  await Promise.all(promises);
-  if (missing.length) {
-    errorsBox.style.display = 'block';
-    errorsBox.textContent = 'Не загружены: ' + missing.join(', ');
-  } else {
-    errorsBox.style.display = 'none';
-  }
-  overlay.textContent = 'Нажми стрелки ← → для движения, Space — удар. Дошёл до правого края — переход на уровень 2.';
-}
-
-/* ------------- Игровые сущности ------------- */
-const ken = {
-  x: 50, y: canvas.height - 200, w: 200, h: 200,
-  vx: 5,
-  action: 'idle', frame:0, animTimer:0,
-  facing: 'right'
-};
-
-const mush = {
-  x: 600, y: canvas.height - 200, w: 200, h: 200,
-  hp: 5, alive: true, action:'idle', frame:0, animTimer:0,
-  hitTimer: 0
-};
-
-let page = 1; // 1 или 2
-
-/* ------------- Управление клавишами ------------- */
-const keys = {};
-window.addEventListener('keydown', e => {
-  keys[e.code] = true;
-  if (e.code === 'Space') e.preventDefault();
-});
-window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-/* ------------- Логика столкновения ------------- */
 function isColliding(a,b) {
   return !(a.x + a.w < b.x  a.x > b.x + b.w  a.y + a.h < b.y || a.y > b.y + b.h);
 }
@@ -266,9 +132,7 @@ function drawMush() {
   const img = imgSet[mush.frame];
   if (img) ctx.drawImage(img, mush.x, mush.y, mush.w, mush.h);
 }
-
-Лана, [19.09.2025 17:52]
-/* ------------- Обновление состояния ------------- */
+  /* ------------- Обновление состояния ------------- */
 function update() {
   // Движение и поворот
   if (keys['ArrowRight']) {
@@ -366,6 +230,5 @@ preloadAll().then(() => {
 });
 </script>
 </body>
-</html>  
-
-
+</html>
+  
