@@ -109,6 +109,7 @@ function drawGirl(){
   if(frames.length===0){drawPlaceholder(girl.x,girl.y,girl.w,girl.h,"Girl");return;}
   let img=frames[Math.floor(Date.now()/400)%frames.length];
   ctx.drawImage(img,girl.x,girl.y,girl.w,girl.h);
+}
   // ================= РЕСУРСЫ =================
 const IMAGES={
   back1:"back1.jpg",back2:"back2.jpg",back3:"back3.jpg",back4:"back4.jpg",
@@ -208,119 +209,6 @@ function render(){
   if(page===4) drawGirl();
   drawKen();
   ctx.fillStyle="#fff";ctx.fillText("Уровень: "+page,14,30);
-}
-  <!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ken — сюжет</title>
-<style>
-  html,body{height:100%;margin:0;background:#000;font-family:monospace;}
-  canvas{display:block;width:100vw;height:100vh;}
-  #overlay{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,0.6);padding:6px;border-radius:6px;z-index:9999;}
-  #oopsBtn{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:60px;padding:12px 18px;background:#e33;color:#fff;border-radius:8px;border:0;cursor:pointer;z-index:10000;}
-</style>
-</head>
-<body>
-<canvas id="gameCanvas"></canvas>
-<div id="overlay">Загрузка ресурсов...</div>
-<button id="oopsBtn">Oops!</button>
-
-<script>
-let images = {};
-let SOUNDS = {};
-let missing = [];
-let page = 1;
-let showOops = false, showOops2 = false;
-
-// главный герой
-const ken = {x:50,y:0,w:200,h:200,vx:6,action:'idle',frame:0,animTimer:0,facing:'right'};
-
-// враги
-const enemies = {
-  level2: {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
-  level3: [
-    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0},
-    {x:0,y:0,w:200,h:200,hp:5,alive:true,animTimer:0,action:'idle',hitTimer:0}
-  ]
-};
-
-// девушка
-const girl = {x:0,y:0,w:220,h:200};
-
-// ================= БАЗА =================
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const overlay = document.getElementById("overlay");
-const oopsBtn = document.getElementById("oopsBtn");
-
-function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  placeEntities();
-}
-window.addEventListener("resize",resize);
-resize();
-
-function placeEntities(){
-  const ground = canvas.height - 200 - 20; // нижняя линия
-  ken.y = ground;
-  enemies.level2.x = canvas.width - 400; enemies.level2.y = ground;
-  enemies.level3[0].x = canvas.width - 600; enemies.level3[0].y = ground;
-  enemies.level3[1].x = canvas.width - 300; enemies.level3[1].y = ground;
-  girl.x = canvas.width - 280; girl.y = ground;
-}
-
-function isColliding(a,b){
-  return !(a.x+a.w<b.xa.x>b.x+b.wa.y+a.h<b.y||a.y>b.y+b.h);
-}
-
-function drawPlaceholder(x,y,w,h,label){
-  ctx.fillStyle="#222";ctx.fillRect(x,y,w,h);
-  ctx.strokeStyle="#555";ctx.strokeRect(x+1,y+1,w-2,h-2);
-  ctx.fillStyle="#fff";ctx.font="14px monospace";ctx.fillText(label,x+6,y+18);
-}
-
-// ================= ОТРИСОВКА =================
-function drawKen(){
-  let set=[images.idle,images.idle1].filter(Boolean);
-  let walk=[images.walk1,images.walk2].filter(Boolean);
-  let img=null;
-  if(ken.action==="walk"&&walk.length){img=walk[Math.floor(ken.animTimer/10)%walk.length];}
-  else if(ken.action==="punch"&&images.punch){img=images.punch;}
-  else if(set.length){img=set[Math.floor(ken.animTimer/20)%set.length];}
-  if(!img){drawPlaceholder(ken.x,ken.y,ken.w,ken.h,"Ken");return;}
-  ctx.save();
-  if(ken.facing==="left"){ctx.scale(-1,1);ctx.drawImage(img,-ken.x-ken.w,ken.y,ken.w,ken.h);}
-  else{ctx.drawImage(img,ken.x,ken.y,ken.w,ken.h);}
-  ctx.restore();
-}
-
-function drawEnemy(en){
-  if(!en.alive) return;
-  let set=[images.mushidle1,images.mushidle2].filter(Boolean);
-  if(en.action==="punch"&&images.mushpunch) set=[images.mushpunch];
-  if(set.length===0){drawPlaceholder(en.x,en.y,en.w,en.h,"Mush");return;}
-  let img=set[Math.floor(en.animTimer/12)%set.length];
-  ctx.drawImage(img,en.x,en.y,en.w,en.h);
-}
-
-function drawDeathPuffs(){
-  if(!enemies.level2.alive&&images.mushdeath)
-    ctx.drawImage(images.mushdeath,enemies.level2.x,enemies.level2.y,enemies.level2.w,enemies.level2.h);
-  enemies.level3.forEach(en=>{
-    if(!en.alive&&images.mushdeath)
-      ctx.drawImage(images.mushdeath,en.x,en.y,en.w,en.h);
-  });
-}
-
-function drawGirl(){
-  const frames=[images.girl1,images.girl2,images.girl3].filter(Boolean);
-  if(frames.length===0){drawPlaceholder(girl.x,girl.y,girl.w,girl.h,"Girl");return;}
-  let img=frames[Math.floor(Date.now()/400)%frames.length];
-  ctx.drawImage(img,girl.x,girl.y,girl.w,girl.h);
-}
   if(page===4&&!showOops&&!showOops2&&nearGirl()){
     ctx.fillStyle="yellow";ctx.fillText("Нажми A",canvas.width-300,canvas.height-260);
   }
