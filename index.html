@@ -153,8 +153,11 @@ function placeEntities(){
   
   ken.y = ground;
   enemies.level2.x = Math.max(300, canvas.width - 400); enemies.level2.y = ground;
+  
+  // Исправляем позиционирование для 3 уровня - оба врага должны быть на земле
   enemies.level3[0].x = Math.max(200, canvas.width - 800); enemies.level3[0].y = ground;
   enemies.level3[1].x = Math.max(300, canvas.width - 400); enemies.level3[1].y = ground;
+  
   girl.x = canvas.width - 280; girl.y = ground;
 }
 
@@ -261,29 +264,30 @@ function playKittyMusic() {
   if (!audioEnabled) return;
   
   try {
-    // Пересоздаем аудио каждый раз для телефона
-    if (kittyMusic) {
-      kittyMusic.pause();
-      kittyMusic = null;
-    }
+    // Останавливаем предыдущую музыку если была
+    stopKittyMusic();
     
+    // Создаем новое аудио
     kittyMusic = new Audio('kitty.mp3');
     kittyMusic.volume = 0.7;
     kittyMusic.loop = true;
     
-    // Важное для телефона!
+    // Важные атрибуты для мобильных устройств
     kittyMusic.setAttribute('preload', 'auto');
     kittyMusic.setAttribute('playsinline', 'true');
     
+    // Пробуем воспроизвести
     const playPromise = kittyMusic.play();
     
     if (playPromise !== undefined) {
       playPromise.catch(error => {
         console.log('Music play failed, trying again:', error);
-        // Пробуем еще раз через секунду
+        // Пробуем еще раз через небольшую задержку
         setTimeout(() => {
-          kittyMusic.play().catch(e => console.log('Second try failed:', e));
-        }, 1000);
+          if (kittyMusic) {
+            kittyMusic.play().catch(e => console.log('Second try failed:', e));
+          }
+        }, 500);
       });
     }
   } catch (e) {
@@ -451,9 +455,10 @@ function update(){
   else if(page===2 && ken.x >= canvas.width - ken.w - 10 && !enemies.level2.alive){ page = 3; ken.x = 40; }
   else if(page===3 && ken.x >= canvas.width - ken.w - 10){ page = 4; ken.x = 40; }
 
-  if(!showOops2) {
-    stopKittyMusic();
-  }
+  // ЗАКОММЕНТИРУЙТЕ ЭТУ СТРОКУ, чтобы музыка не останавливалась
+  // if(!showOops2) {
+  //   stopKittyMusic();
+  // }
 }
 
 function render(){
@@ -506,7 +511,30 @@ function loop(){
     console.error(err);
   }
 }
+  
+// ===== ОБРАБОТЧИК КНОПКИ OOPS =====
+oopsBtn.addEventListener('click', ()=>{
+  showOops = false;
+  showOops2 = true;
+  oopsBtn.style.display = 'none';
+  playSound('kitty');
+  
+  // Добавляем небольшую задержку для надежного воспроизведения
+  setTimeout(() => {
+    playKittyMusic();
+  }, 300);
+});
 
+// ===== ЗАПУСК =====
+preloadAll().then(()=>{
+  placeEntities();
+  setupMobileControls();
+  loop();
+}).catch(e=>{
+  overlay.style.display='block';
+  overlay.textContent='Ошибка при старте: '+e;
+  console.error(e);
+});
 // ===== ЗАПУСК =====
 preloadAll().then(()=>{
   placeEntities();
@@ -527,5 +555,6 @@ window.addEventListener('error', (e) => {
 </script>
 </body>
 </html>    
+
 
 
